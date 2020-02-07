@@ -1,4 +1,7 @@
-# Download data from arxiv API, write to Google Sheets
+# Download papers data from arxiv API
+
+# Reads in existing papers.rds (if it exists), and then uses the number of papers
+# in papers.rds to determine which new papers to as the API for
 
 # Author: Sara Altman
 # Version: 2020-01-30
@@ -6,10 +9,10 @@
 # Libraries
 library(tidyverse)
 library(aRxiv)
-library(googlesheets4)
 
 # Parameters
-file_subfield_counts <- "data/subfield_counts.rds"
+file_subfield_counts <- here::here("data/subfield_counts.rds")
+file_papers <- here::here("data/papers.rds")
 variables <-
   c(
     "id",
@@ -22,9 +25,6 @@ variables <-
     reference = "journal_ref",
     "doi"
   )
-sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
-ws <- "Papers"
-file_out <- "papers.rds"
 #===============================================================================
 
 tidy_arxiv <- function(code, start = 0, limit, batchsize = 1000) {
@@ -33,7 +33,7 @@ tidy_arxiv <- function(code, start = 0, limit, batchsize = 1000) {
     arxiv_search(
       query = query,
       start = start,
-      limit = limit,
+      limit = limit - start,
       batchsize = batchsize,
       force = TRUE
     ) %>%
@@ -44,12 +44,25 @@ tidy_arxiv <- function(code, start = 0, limit, batchsize = 1000) {
   batch
 }
 
-subfield_counts <- read_rds(file_subfield_counts)
+limits <-
+  read_rds(file_subfield_counts) %>%
+  select(code, limit = count)
+
+if (fs::file_exists(file_papers)) {
+  limits <-
+    read_rds(file_papers) %>%
+    count(code = query_id, name = "start") %>%
+    left_join(limits, by = c("code"))
+} else {
+  limits <-
+    limits %>%
+    mutate(start = 0) %>%
+    select(code, start, limit)
+}
 
 papers <-
-  subfield_counts %>%
-  select(code, limit = count) %>%
-  mutate(limit = 2) %>%
+  limits %>%
+  filter(start != limit) %>%
   pmap_dfr(tidy_arxiv) %>%
   mutate_at(
     vars(authors, categories),
@@ -59,19 +72,9 @@ papers <-
   ) %>%
   mutate_at(vars(contains("date")), lubridate::as_date)
 
-# Check that ID uniquely identifies papers
-v <-
-  papers %>%
-  select(-query_id) %>%
-  count(!!!., sort = TRUE)
 
-stopifnot(n_distinct(v$id) == nrow(v))
+read_rds(file_papers) %>%
+  bind_rows(papers) %>%
+  write_rds(file_papers, compress = "gz")
 
-# If ID uniquely identifies papers, throw out duplicates
-papers %>%
-  distinct(id, .keep_all = TRUE) %>%
-  write_rds(file_out, compress = "gz")
-
-papers %>%
-  sheets_write(ss = sheet_key, sheet = ws)
 
