@@ -1,0 +1,59 @@
+---
+title: 
+author: 
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+
+# Parameters
+file_papers <- here::here("data/papers.rds")
+file_subfield_counts <- here::here("data/subfield_counts.rds")
+#===============================================================================
+
+papers <- read_rds(file_papers)
+subfield_counts <- read_rds(file_subfield_counts)
+```
+
+## Primary categories
+
+```{r}
+papers %>% 
+  count(primary_category, sort = TRUE)
+```
+
+## Is `id` unique?
+
+```{r}
+df <-
+  papers %>% 
+  mutate(
+    authors = map_chr(authors, ~ str_c(sort(.), collapse = ", ")),
+    categories = map_chr(categories, ~ str_c(sort(.), collapse = ", "))
+  )
+
+x <-
+  df %>% 
+  select(-query_id) %>% 
+  count(!!!., sort = TRUE) 
+
+n_distinct(x$id) == nrow(x)
+```
+
+Yes. There are duplicates because some papers appear in multiple search categories. 
+
+```{r}
+papers_distinct <-
+  papers %>% 
+  distinct(id, .keep_all = TRUE)
+```
+

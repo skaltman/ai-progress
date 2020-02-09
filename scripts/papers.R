@@ -8,73 +8,66 @@
 
 # Libraries
 library(tidyverse)
-library(aRxiv)
+library(arxivapi)
 
 # Parameters
 file_subfield_counts <- here::here("data/subfield_counts.rds")
-file_papers <- here::here("data/papers.rds")
-variables <-
-  c(
-    "id",
-    "title",
-    "authors",
-    date_submitted = "submitted",
-    date_updated = "updated",
-    "primary_category",
-    "categories",
-    reference = "journal_ref",
-    "doi"
-  )
+file_all <- here::here("data/papers_all.rds")
+file_distinct <- here::here("data/papers.rds")
+dir_data <- here::here("data")
+sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
+ws <- "Papers"
+BATCH_SIZE <- 1000
+SLEEP <- 3
 #===============================================================================
 
-tidy_arxiv <- function(code, start = 0, limit, batchsize = 1000) {
+get_subfield_papers <- function(code, start = 0, limit) {
   query <- str_glue("cat:{code}")
-  batch <-
-    arxiv_search(
+
+  message("Retrieving papers for ", code)
+
+  papers_subfield <-
+    arxiv_request(
       query = query,
       start = start,
-      limit = limit - start,
-      batchsize = batchsize,
-      force = TRUE
+      limit = limit,
+      batch_size = BATCH_SIZE,
+      sleep = SLEEP
     ) %>%
-    as_tibble() %>%
-    select(variables) %>%
-    mutate(query_id = code)
+    mutate(query_id = code) %>%
+    write_rds(path_subfield_data(code))
 
-  batch
+  papers_subfield
 }
 
-limits <-
-  read_rds(file_subfield_counts) %>%
-  select(code, limit = count)
-
-if (fs::file_exists(file_papers)) {
-  limits <-
-    read_rds(file_papers) %>%
-    count(code = query_id, name = "start") %>%
-    left_join(limits, by = c("code"))
-} else {
-  limits <-
-    limits %>%
-    mutate(start = 0) %>%
-    select(code, start, limit)
+path_subfield_data <- function(code) {
+  fs::path(
+    dir_data,
+    str_replace(code, "\\.", "_"),
+    ext = "rds"
+  )
 }
 
 papers <-
-  limits %>%
-  filter(start != limit) %>%
-  pmap_dfr(tidy_arxiv) %>%
+  read_rds(file_subfield_counts) %>%
+  mutate(start = 0) %>%
+  select(code, start, limit = count) %>%
+  pmap_dfr(., get_subfield_papers) %>%
   mutate_at(
     vars(authors, categories),
     str_replace_all,
     pattern = "\\|",
     replacement = ", "
   ) %>%
-  mutate_at(vars(contains("date")), lubridate::as_date)
+  mutate_at(vars(contains("date")), lubridate::as_date) %>%
+  mutate_if(is.character, na_if, "")
 
+papers %>%
+  write_rds(file_all, compress = "gz")
 
-read_rds(file_papers) %>%
-  bind_rows(papers) %>%
-  write_rds(file_papers, compress = "gz")
+papers %>%
+  distinct(id, .keep_all = TRUE) %>%
+  write_rds("data/papers.rds", compress = "gz") %>%
+  write_sheet(ss = sheet_key, sheet = ws)
 
 

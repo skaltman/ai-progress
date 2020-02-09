@@ -45,12 +45,15 @@ if (file_exists(file_papers_extra)) {
   start <- nrow(read_rds(file_papers_extra))
 }
 
+stopifnot(start < limit)
+
 papers <-
   arxiv_search(
     query,
     start = start,
     limit = limit - start,
-    batchsize = 2000
+    batchsize = 2000,
+    force = TRUE
   ) %>%
   as_tibble() %>%
   select(variables) %>%
