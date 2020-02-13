@@ -59,7 +59,7 @@ papers <-
     pattern = "\\|",
     replacement = ", "
   ) %>%
-  mutate_at(vars(contains("date")), lubridate::as_date) %>%
+  mutate_at(vars(submitted, updated), lubridate::as_date) %>%
   mutate_if(is.character, na_if, "")
 
 papers %>%
@@ -67,7 +67,7 @@ papers %>%
 
 papers %>%
   distinct(id, .keep_all = TRUE) %>%
-  write_rds("data/papers.rds", compress = "gz") %>%
+  write_rds(file_distinct, compress = "gz") %>%
   write_sheet(ss = sheet_key, sheet = ws)
 
 

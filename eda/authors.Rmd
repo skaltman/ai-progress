@@ -1,0 +1,81 @@
+---
+title: "researchers"
+author: "Sara Altman"
+date: "2020-02-08"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+library(tidyverse)
+
+authors <- read_rds(here::here("data/authors.rds"))
+```
+
+```{r}
+authors %>% 
+  mutate_all(is.na) %>% 
+  count(!!!.)
+```
+
+There are no NAs.
+
+```{r}
+unique_authors <-
+  authors %>% 
+  count(author, sort = TRUE)
+
+unique_authors
+```
+
+According to this, there are `r nrow(unique_authors)`.
+
+```{r}
+unique_authors %>% 
+  arrange(author)
+```
+
+There are still some that seem like they might be coded differently elsewhere.
+
+
+```{r}
+authors_entry <-
+  authors %>% 
+  group_by(author) %>% 
+  top_n(n = -1, wt = submitted) %>% 
+  ungroup() %>% 
+  distinct(author, submitted) %>% 
+  count(submitted, name = "new_authors") %>% 
+  arrange(submitted) %>% 
+  mutate(num_authors = cumsum(new_authors))
+
+authors_entry %>% 
+  rename(total_authors = num_authors)
+```
+
+
+
+
+
+```{r}
+reticulate::import_from_path("scholarly", "~/./miniconda3/lib/python3.6/site-packages")
+```
+
+```{r}
+papers$title[[1]]
+papers
+```
+
+
+```{python}
+import scholarly
+search_query = scholarly.search_keyword('Haptics')
+print(next(search_query))
+
+search_query = scholarly.search_pubs_query("Lasso type classifiers with a reject option")
+print(next(search_query))
+```
+
