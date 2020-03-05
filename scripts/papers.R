@@ -9,11 +9,13 @@
 # Libraries
 library(tidyverse)
 library(arxivapi)
+library(arrow)
 
 # Parameters
 file_subfield_counts <- here::here("data/subfield_counts.rds")
 file_all <- here::here("data/papers_all.rds")
 file_distinct <- here::here("data/papers.rds")
+file_distinct_parquet <- here::here("data/papers.parquet")
 dir_data <- here::here("data")
 sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
 ws <- "Papers"
@@ -67,7 +69,9 @@ papers %>%
 
 papers %>%
   distinct(id, .keep_all = TRUE) %>%
+  distinct(title, .keep_all = TRUE) %>% # There are 123 duplicate titles. Most of these appear to be the same paper, listed multiple times (see papers.Rmd)
   write_rds(file_distinct, compress = "gz") %>%
+  write_parquet(file_distinct_parquet) %>%
   write_sheet(ss = sheet_key, sheet = ws)
 
 

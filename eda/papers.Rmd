@@ -51,9 +51,81 @@ n_distinct(x$id) == nrow(x)
 
 Yes. There are duplicates because some papers appear in multiple search categories. 
 
+## Titles
+
+Are titles unique identifiers?
+
 ```{r}
-papers_distinct <-
-  papers %>% 
-  distinct(id, .keep_all = TRUE)
+n_distinct(papers$title) == n_distinct(papers$id)
 ```
 
+No. 
+
+```{r}
+duplicate_titles <-
+  papers %>% 
+  count(title) %>% 
+  filter(n > 1)
+
+duplicate_titles
+```
+
+There are `r nrow(duplicate_titles)` duplicate titles.
+
+```{r}
+duplicate_titles %>% 
+  count(n)
+```
+
+Most of them are repeated once. One paper's title is there 4 times.
+
+```{r}
+duplicate_titles %>% 
+  filter(n == 4)
+```
+
+Are they really the same papers?
+
+```{r}
+papers_lowercase <-
+  papers %>% 
+  mutate(authors = str_to_lower(authors)) 
+
+x <-
+  papers_lowercase %>% 
+  filter(title %in% duplicate_titles$title) %>% 
+  count(title, authors) %>% 
+  count(n)
+
+x
+```
+
+`r x %>% filter(n == 2) %>% pull(nn)` of the `r sum(x$nn)` duplicates have the same authors, are just repeates. The others do not have the same authors. 
+
+```{r}
+papers %>% 
+  filter(title %in% duplicate_titles$title) %>% 
+  count(title, authors) %>% 
+  filter(n == 1) %>% 
+  arrange(title)
+```
+
+Most of them are probably the same papers, with the authors listed slightly differently. 
+
+```{r}
+papers %>% 
+  filter(title %in% duplicate_titles$title) %>% 
+  count(title, authors) %>% 
+  filter(n == 1) %>% 
+  group_by(title) %>% 
+  mutate(paper_number = row_number()) %>% 
+  pivot_wider(
+    id_cols = title, 
+    names_from = paper_number, 
+    names_prefix = "paper_",
+    values_from = authors
+  ) %>% 
+  select(paper_1, paper_2, title)
+```
+
+Most of them appear to be the same paper, so for now we can exclude papers with duplicate titles. 

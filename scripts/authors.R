@@ -17,22 +17,7 @@ sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
 ws_authors_new <- "Researchers"
 ws_authors_subfields <- "Researchers by subfield"
 ws_authors_summary <- "Researcher totals"
-# authors_exclude <-
-#   c(
-#     "Jr.",
-#     "Jr",
-#     "IEEE",
-#     "OpenAI",
-#     ":",
-#     ".",
-#     "",
-#     "Fellow",
-#     "Member",
-#     "France",
-#     "LAGIS",
-#     "LACS",
-#     "ECL"
-#   )
+
 #===============================================================================
 
 clean_authors <- function(authors) {

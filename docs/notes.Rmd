@@ -9,6 +9,8 @@ output: github_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+# Intro
+
 ## Are ideas getting harder to find?
 
 * Research effort is rising, while research productivity is declining sharply
@@ -29,3 +31,26 @@ knitr::opts_chunk$set(echo = TRUE)
 ## AI index
 
 seems like they are just searching for the term in the text of the paper, e.g., "ImageNet". This paper only mentions ImageNet in passing: https://arxiv.org/pdf/1705.01217.pdf
+
+# Citations
+
+## Google Scholar
+
+Limits; search by title
+
+## Open citations
+
+Need to search by DOI
+
+## Crossref
+
+Can get citations by title
+If I do title-by-title, will take 53 hours
+Doesn't get all the papers. Maybe around 50%
+
+## Elsevier
+
+Citation counts might be off?
+
+## Microsoft
+
