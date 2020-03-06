@@ -21,6 +21,20 @@ sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
 ws <- "Papers"
 BATCH_SIZE <- 1000
 SLEEP <- 3
+
+col_order <-
+  c(
+    "id",
+    "title",
+    "authors",
+    "date_submitted" = "submitted",
+    "date_updated" = "updated",
+    "primary_category",
+    "categories",
+    "reference" = "journal_ref",
+    "doi",
+    "query_id"
+  )
 #===============================================================================
 
 get_subfield_papers <- function(code, start = 0, limit) {
@@ -69,9 +83,10 @@ papers %>%
 
 papers %>%
   distinct(id, .keep_all = TRUE) %>%
-  distinct(title, .keep_all = TRUE) %>% # There are 123 duplicate titles. Most of these appear to be the same paper, listed multiple times (see papers.Rmd)
+  distinct(title, .keep_all = TRUE) %>%
+  select(col_order) %>% # There are 123 duplicate titles. Most of these appear to be the same paper, listed multiple times (see papers.Rmd)
   write_rds(file_distinct, compress = "gz") %>%
   write_parquet(file_distinct_parquet) %>%
   write_sheet(ss = sheet_key, sheet = ws)
 
-
+sheet_key <- "1wmfRjPW8yY-zGrrFFiWtNaKpWvKItrKLHmxEBTzkxyk"

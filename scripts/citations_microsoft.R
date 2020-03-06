@@ -10,11 +10,28 @@ library(googlesheets4)
 
 # Parameters
 file_papers <- here::here("data/papers.rds")
-file_out <- here::here("data/citations_100000.rds")
+file_out <- here::here("data/citations.rds")
+file_out_csv <- here::here("data/citations.csv")
 response_vars <- c('Id', 'AA.AuN', 'DN', 'CC', 'DOI')
 query <- "Ti=='{title_query}'"
 sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
-sheet_ws <- "papers_citations"
+#sheet_key <- "1wmfRjPW8yY-zGrrFFiWtNaKpWvKItrKLHmxEBTzkxyk"
+sheet_ws <- "Papers"
+
+col_order <-
+  c(
+    "id",
+    "title",
+    "authors",
+    "date_submitted" = "submitted",
+    "date_updated" = "updated",
+    "primary_category",
+    "categories",
+    "reference" = "journal_ref",
+    "doi",
+    "query_id",
+    "citations"
+  )
 #===============================================================================
 
 clean_title <- function(title) {
@@ -81,8 +98,11 @@ get_microsoft <- function(id, title, n) {
 
 possibly_get_microsoft <- possibly(get_microsoft, otherwise = tibble())
 
+papers <-
+  read_rds(file_papers)
+
 citations <-
-  read_rds(file_papers) %>%
+  papers %>%
   mutate(n = row_number()) %>%
   select(id, title, n) %>%
   pmap_dfr(possibly_get_microsoft) %>%
@@ -90,5 +110,13 @@ citations <-
 
 
 # Join with papers data and write to Google Sheets
-
+all <-
+  papers %>%
+  left_join(
+    citations %>% select(id = id_arxiv, citations, doi_mc = doi),
+    by = "id"
+  ) %>%
+  mutate(doi = coalesce(doi, doi_mc)) %>%
+  select(col_order) %>%
+  sheets_write(ss = sheet_key, sheet = sheet_ws)
 
