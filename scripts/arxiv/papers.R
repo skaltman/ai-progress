@@ -88,5 +88,3 @@ papers %>%
   write_rds(file_distinct, compress = "gz") %>%
   write_parquet(file_distinct_parquet) %>%
   write_sheet(ss = sheet_key, sheet = ws)
-
-sheet_key <- "1wmfRjPW8yY-zGrrFFiWtNaKpWvKItrKLHmxEBTzkxyk"

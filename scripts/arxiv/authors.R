@@ -8,10 +8,10 @@ library(tidyverse)
 library(googlesheets4)
 
 # Parameters
-file_papers <- here::here("data/papers.rds")
-file_authors <- here::here("data/authors.rds")
-file_authors_new <- here::here("data/authors_new.rds")
-file_authors_subfields <- here::here("data/authors_subfields.rds")
+file_papers <- here::here("data/arxiv/papers.rds")
+file_authors <- here::here("data/arxiv/arxiv_authors.rds")
+file_authors_new <- here::here("data/arxiv/arxiv_authors_new.rds")
+file_authors_subfields <- here::here("data/arxiv/arxiv_authors_subfields.rds")
 
 sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
 ws_authors_new <- "Researchers"
