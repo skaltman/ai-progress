@@ -14,11 +14,15 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 
 # Parameters
-file_sota <- here::here("data/sota.rds")
+file_sota <- here::here("data/sota/sota.rds")
 
 #===============================================================================
 
 sota <- read_rds(file_sota)
+
+sota %>% 
+  mutate(categories = map_chr(categories, str_c, collapse = ", ")) %>% 
+  googlesheets4::sheets_write("1BSzE5Yinlz9Exq7bW-dJj2_cBnUD_04-pHHELjCA1xo")
 ```
 
 ## Understanding benchmarks
@@ -272,14 +276,14 @@ sota %>%
   ggplot(aes(days_written_after_first_in_benchmark, percent_change, color = categories)) +
   geom_point() 
 
-sota %>% 
-  drop_na(percent_change, paper_date)   %>% 
-  filter(metric_name != "Number of params") %>% 
-  filter(categories != "Playing Games") %>% 
-  filter(percent_change > 0) %>%
-  unnest(categories) %>% 
-  ggplot(aes(days_written_after_first_in_benchmark, percent_change, color = categories)) +
-  geom_smooth(se = FALSE)
+# sota %>% 
+#   drop_na(percent_change, paper_date)   %>% 
+#   filter(metric_name != "Number of params") %>% 
+#   filter(categories != "Playing Games") %>% 
+#   filter(percent_change > 0) %>%
+#   unnest(categories) %>% 
+#   ggplot(aes(days_written_after_first_in_benchmark, percent_change, color = categories)) +
+#   geom_smooth(se = FALSE)
 
 sota %>% 
   unnest(categories) %>% 
@@ -338,8 +342,4 @@ sota %>%
 ```
 
 
-
-```{r}
-sota_category("Computer Vision")
-```
 

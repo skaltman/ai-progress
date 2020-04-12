@@ -5,6 +5,7 @@
 
 # Libraries
 library(tidyverse)
+library(googlesheets4)
 
 # Parameters
 file_ms <- here::here("data/microsoft/ms_citations.rds")
@@ -20,10 +21,11 @@ file_authors_new_subfields_10 <-
 
 sheet_key <- "1NB22PAhoFVAYxzNEROrBchbtmDm15ZG6jLeayb-gsyE"
 ws_all <- "Researchers"
-ws_10 <- "Researchers with 10+ papers"
+ws_10 <- "Researchers with 10+ citations"
+ws_1 <- "Researchers with 1+ citations"
 ws_subfields <- "Researchers - Subfields"
-ws_subfields_10 <- "Researchers with 10+ papers - Subfields"
-
+ws_subfields_10 <- "Researchers with 10+ citations - Subfields"
+ws_subfields_1 <- "Researchers with 1+ citations - Subfields"
 #===============================================================================
 
 author_entry_dates <- function(data, ...) {
@@ -54,13 +56,16 @@ authors <-
     arxiv %>% select(id, query_id),
     by = c("id_arxiv" = "id")
   ) %>%
-  select(id_ms, authors, date, subfield = query_id) %>%
+  select(id_ms, authors, date, citations, subfield = query_id) %>%
   unnest(col = authors, keep_empty = TRUE) %>%
   select(-authors) %>%
   rename(
     author_name = AuN,
     author_id = AuId
-  ) %>%
+  )
+
+authors %>%
+  select(-citations) %>%
   write_rds(file_authors)
 
 new_authors_all <-
@@ -72,11 +77,18 @@ new_authors_all <-
 new_authors_10 <-
   authors %>%
   group_by(author_id) %>%
-  filter(n() >= 10) %>%
+  filter(any(citations >= 10)) %>%
   ungroup() %>%
   author_entry_dates() %>%
   write_rds(file_authors_new_10) %>%
   sheets_write(sheet_key, sheet = ws_10)
+
+authors %>%
+  group_by(author_id) %>%
+  filter(any(citations >= 1)) %>%
+  ungroup() %>%
+  author_entry_dates() %>%
+  sheets_write(sheet_key, sheet = ws_1)
 
 authors_by_subfield <-
   authors %>%
@@ -87,8 +99,15 @@ authors_by_subfield <-
 authors_by_subfield_10 <-
   authors %>%
   group_by(author_id) %>%
-  filter(n() >= 10) %>%
+  filter(any(citations >= 10)) %>%
   ungroup() %>%
   author_entry_dates(subfield) %>%
   write_rds(file_authors_new_subfields_10) %>%
   sheets_write(sheet_key, sheet = ws_subfields_10)
+
+authors %>%
+  group_by(author_id) %>%
+  filter(any(citations >= 1)) %>%
+  ungroup() %>%
+  author_entry_dates(subfield) %>%
+  sheets_write(sheet_key, sheet = ws_subfields_1)

@@ -16,8 +16,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 
 # Parameters
-file_citations <- here::here("data/citations_microsoft.rds")
-file_papers <- here::here("data/papers.rds")
+file_citations <- here::here("data/microsoft/ms_citations.rds")
+file_papers <- here::here("data/arxiv/papers.rds")
 #===============================================================================
 
 # Code
@@ -30,7 +30,7 @@ papers <- read_rds(file_papers)
 
 ```{r}
 citations %>% 
-  count(accessed = !is.na(id_mc), sort = TRUE) %>% 
+  count(accessed = !is.na(id_ms), sort = TRUE) %>% 
   mutate(prop = n / sum(n)) %>% 
   ungroup()
 ```
@@ -103,7 +103,7 @@ Combined with the arXiv data, how many papers have DOIs?
 ```{r}
 combined_doi <-
   citations %>% 
-  select(id_arxiv, doi_mc = doi) %>% 
+  select(id_arxiv, doi_ms = doi) %>% 
   left_join(
     papers %>% select(id, title, doi_arxiv = doi), 
     by = c("id_arxiv" = "id")
@@ -116,7 +116,7 @@ Are the DOIs the same for the papers that have both?
 ```{r}
 combined_doi %>% 
   drop_na(starts_with("doi")) %>% 
-  count(same = doi_arxiv == doi_mc, sort = TRUE)
+  count(same = doi_arxiv == doi_ms, sort = TRUE)
 ```
 
 Most are the same.
@@ -125,7 +125,7 @@ How many papers have at least one DOI listed?
 
 ```{r}
 combined_doi %>% 
-  mutate(doi = coalesce(doi_mc, doi_arxiv)) %>% 
+  mutate(doi = coalesce(doi_ms, doi_arxiv)) %>% 
   count(has_doi = !is.na(doi), sort = TRUE) %>% 
   mutate(prop = n / sum(n)) %>% 
   ungroup()
@@ -137,7 +137,7 @@ Only 30%.
 
 ```{r}
 citations %>% 
-  filter(!is.na(id_mc), is.na(citations))
+  filter(!is.na(id_ms), is.na(citations))
 ```
 
 There are no papers with a Microsoft ID and no citation data.

@@ -1,0 +1,35 @@
+---
+title: "SOTA notes"
+author: "Sara Altman"
+date: "3/11/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Variables
+
+* `index` 
+* `paper_id` 
+* `benchmark_id` 
+* `categories`: Paper/task categories (e.g., Natural Language Processing)
+* `description`: Short description of the task
+* `source_link`
+* `synonyms`
+* `task`: Task name (e.g., Face Detection)
+* `metrics`: List column of tibbles with metrics and values
+* `model_links`
+* `model_name`: Name of the model
+* `paper_date`: Date the paper was published
+* `paper_title`: Title of the paper
+* `paper_url`
+* `metric_name`: Name of one of the metrics? Maybe the first one in the metrics data?
+* `metric_result`: Value of the metric given in `metric_name`
+* `last_paper_in_benchmark`: 
+
+
+## Suspicious values
+
+* GDAS top-1 error rate for paper index 636	
