@@ -19,10 +19,6 @@ file_sota <- here::here("data/sota/sota.rds")
 #===============================================================================
 
 sota <- read_rds(file_sota)
-
-sota %>% 
-  mutate(categories = map_chr(categories, str_c, collapse = ", ")) %>% 
-  googlesheets4::sheets_write("1BSzE5Yinlz9Exq7bW-dJj2_cBnUD_04-pHHELjCA1xo")
 ```
 
 ## Understanding benchmarks
@@ -199,7 +195,7 @@ observations_by_category %>%
   )
 ```
 
-100% of the metrics for audio, adversarial, and knowledge base were only measured once, which means we won't be able to get anything meaningful from these categories. 
+100% of the metrics for reasoning, audio, adversarial, and knowledge base were only measured once, which means we won't be able to get anything meaningful from these categories. 
 
 ```{r}
 sota %>% 
@@ -209,10 +205,10 @@ sota %>%
   mutate(prop = nn / sum(nn))
 ```
 
-40% of all task-metric combinations have only one data point.
+56% of all task-metric combinations have only one data point.
 
 ```{r}
-num_observations %>% 
+observations_by_category %>% 
   uncount(weights = n) %>% 
   group_by(categories) %>% 
   summarize(median_observations = median(num_observations)) %>% 
@@ -249,6 +245,7 @@ sota %>%
   drop_na(metric_name, metric_result) %>%
   filter(percent_change != 0) %>% 
   unnest(cols = categories) %>% 
+  filter(categories != "Playing Games") %>% 
   mutate(
     categories = 
       fct_reorder(categories, percent_change, .desc = TRUE)
@@ -256,13 +253,34 @@ sota %>%
   ggplot(aes(categories, percent_change)) +
   geom_hline(yintercept = 0, size = 1.5, color = "white") +
   geom_boxplot() +
+  scale_y_log10()
   theme(
     axis.text.x = element_text(angle = 45)
   ) +
   coord_cartesian(ylim = y_limits)
 ```
 
-Methodology has the outliers.
+Methodology has the outliers. There really shouldn't be negative percent change. Did I calculate something wrong?
+
+```{r}
+sota %>% 
+  unnest(categories) %>% 
+  filter(categories == "Computer Vision") %>% 
+  group_by(task) %>% 
+  filter(any(percent_change < 0)) %>% 
+  ungroup() %>% 
+  select(
+    paper_id, 
+    paper_date, 
+    task, 
+    metric_name, 
+    metric_result, 
+    percent_change
+  ) %>% 
+  arrange(task, metric_name, paper_date)
+```
+
+
 
 ## SOTA progress
 
