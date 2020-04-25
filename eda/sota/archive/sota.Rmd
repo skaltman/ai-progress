@@ -1,0 +1,372 @@
+---
+title: "SOTA"
+author: "Sara Altman"
+date: "3/11/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r warning=FALSE, message=FALSE}
+# Libraries
+library(tidyverse)
+
+# Parameters
+file_sota <- here::here("data/sota/sota.rds")
+
+#===============================================================================
+
+sota <- read_rds(file_sota)
+```
+
+## Understanding benchmarks
+
+Each task has one benchmark ID.
+
+```{r}
+sota %>% 
+  group_by(task) %>% 
+  summarize(num_benchmarks = n_distinct(benchmark_id, na.rm = TRUE)) %>% 
+  count(num_benchmarks)
+```
+
+The benchmark IDs are unique identifiers of the tasks. 
+
+```{r}
+n_distinct(sota$benchmark_id) == n_distinct(sota$task)
+```
+
+Some benchmarks are associated with multiple metrics.
+
+```{r}
+sota %>% 
+  group_by(benchmark_id, task) %>% 
+  summarize(num_metrics = n_distinct(metric_name, na.rm = TRUE)) %>% 
+  ungroup() %>% 
+  arrange(desc(num_metrics))
+```
+
+Does each task belong to a distinct category set?
+
+```{r}
+sota %>% 
+  select(index, task, categories) %>% 
+  mutate(categories = map_chr(categories, ~ sort(.) %>% str_c(collapse = ", "))) %>% 
+  group_by(task) %>% 
+  summarize(
+    distinct_category_groups = n_distinct(categories, na.rm = TRUE), 
+    sort = TRUE
+  ) %>% 
+  pull(sort) %>% 
+  all()
+```
+
+Yes, each task is mapped to one category set. 
+
+## Categories
+
+```{r}
+sota %>% 
+  unnest(cols = categories) %>% 
+  count(categories) %>% 
+  mutate(categories = fct_reorder(categories, n)) %>% 
+  ggplot(aes(n, categories)) +
+  geom_point() +
+  scale_x_continuous(breaks = scales::breaks_width(width = 50)) +
+  labs(
+    title = "Number of SOTA measurements by category",
+    subtitle = "NLP and computer vision have the most data"
+  )
+```
+
+```{r}
+sota %>% 
+  unnest(cols = categories) %>% 
+  distinct(categories, task) %>% 
+  count(categories) %>% 
+  mutate(categories = fct_reorder(categories, n)) %>%
+  ggplot(aes(n, categories)) +
+  geom_point() +
+  scale_x_continuous(breaks = scales::breaks_width(width = 50)) +
+  labs(
+    title = "Number of distinct tasks by category",
+    subtitle = "Computer vision and NLP have the most tasks"
+  )
+```
+
+## Missing metrics
+
+```{r}
+sota %>% 
+  mutate_at(vars(metric_name, metric_result), list(missing = is.na)) %>% 
+  count(metric_name_missing, metric_result_missing, sort = TRUE) %>% 
+  mutate(prop = n / sum(n))
+```
+
+33% are missing a metric name and a metric value. There are 7 rows missing a metric value, but not a metric name. These are rows where I was not able to turn the metric value into a double (e.g., it was a word). 
+
+Missing metrics by category
+
+```{r}
+missing_metrics <-
+  sota %>% 
+  unnest(cols = categories) %>% 
+  group_by(categories) %>% 
+  summarize(
+    prop_missing = sum(is.na(metric_result)) / n(),
+    n = n()
+  ) 
+
+missing_metrics %>% 
+  arrange(desc(prop_missing))
+```
+
+The Robots category is missing 100% of its metrics.
+
+```{r}
+missing_metrics %>% 
+  mutate(categories = fct_reorder(categories, prop_missing)) %>% 
+  ggplot(aes(prop_missing, categories, size = n)) +
+  geom_vline(xintercept = 0.5, color = "white", size = 1.5) +
+  geom_point() +
+  scale_x_continuous(
+    breaks = scales::breaks_width(width = .1), 
+    limits = c(0, 1)
+  ) +
+  labs(
+    title = "Missing metrics across categories",
+    subtitle = "5 categories are missing over 50% of metric results",
+    size = "Number of\nmeasurements"
+  )
+```
+
+Computer vision and NLP both have a lot of data and relatively low proportions of missing data, so they are probably going to be the most reliable categories. 
+
+```{r}
+observations <-
+  sota %>% 
+  drop_na(metric_name, metric_result) %>% 
+  count(benchmark_id, metric_name, sort = TRUE)
+
+observations %>% 
+  count(n) %>% 
+  mutate(prop = nn / sum(nn))
+```
+
+41% of the (non-missing) task-metric combinations have only 1 data point, which means we won't be able to understand how the metric has changed over time for those task-metric combinations.
+
+```{r}
+observations %>% 
+  ggplot(aes(n)) +
+  geom_histogram(binwidth = 1) +
+  labs(title = "Number of observations (metric measurements for a given task)")
+```
+
+Many metrics are only measured once.
+
+```{r}
+observations_by_category <-
+  sota %>% 
+  drop_na(metric_result, metric_name) %>% 
+  unnest(cols = categories) %>% 
+  group_by(categories) %>% 
+  count(benchmark_id, metric_name, name = "num_observations") %>% 
+  count(num_observations, sort = TRUE, name = "n") %>% 
+  ungroup()
+
+
+observations_by_category %>% 
+  group_by(categories) %>% 
+  summarize(
+    prop_one = n[num_observations == 1] / sum(n),
+    n_metrics = sum(n)
+  ) %>% 
+  mutate(categories = fct_reorder(categories, prop_one, .desc = TRUE)) %>% 
+  ggplot(aes(prop_one, categories, size = n_metrics)) +
+  geom_point() +
+  scale_x_continuous(breaks = scales::breaks_width(0.1)) +
+  labs(
+    x = "Proportion of metrics with only a single observation",
+    title = "Proportion of single observation metrics by category",
+    subtitle = "Many metrics are only measured once",
+    size = "Number of\ndistinct metrics"
+  )
+```
+
+100% of the metrics for reasoning, audio, adversarial, and knowledge base were only measured once, which means we won't be able to get anything meaningful from these categories. 
+
+```{r}
+sota %>% 
+  drop_na(metric_result, metric_name) %>% 
+  count(benchmark_id, metric_name, sort = TRUE) %>% 
+  count(n) %>% 
+  mutate(prop = nn / sum(nn))
+```
+
+56% of all task-metric combinations have only one data point.
+
+```{r}
+observations_by_category %>% 
+  uncount(weights = n) %>% 
+  group_by(categories) %>% 
+  summarize(median_observations = median(num_observations)) %>% 
+  mutate(categories = fct_reorder(categories, median_observations)) %>% 
+  ggplot(aes(median_observations, categories)) +
+  geom_point()
+``` 
+
+## Percent change
+
+```{r}
+y_limits <- quantile(sota$percent_change, probs = c(0.1, .9), na.rm = TRUE)
+
+sota %>% 
+  drop_na(metric_name, metric_result) %>% 
+  ggplot(aes(factor(1), percent_change)) +
+  geom_boxplot() +
+  coord_cartesian(ylim = y_limits) +
+  labs(
+    title = "Percent change for the middle 80% of the data",
+    subtitle = "There are lots of outliers"
+  )
+```
+
+```{r}
+quantile(sota$percent_change, na.rm = TRUE)
+```
+
+```{r}
+y_limits <- 
+    quantile(sota$percent_change, probs = c(0.01, .99), na.rm = TRUE)
+
+sota %>% 
+  drop_na(metric_name, metric_result) %>%
+  filter(percent_change != 0) %>% 
+  unnest(cols = categories) %>% 
+  filter(categories != "Playing Games") %>% 
+  mutate(
+    categories = 
+      fct_reorder(categories, percent_change, .desc = TRUE)
+  ) %>% 
+  ggplot(aes(categories, percent_change)) +
+  geom_hline(yintercept = 0, size = 1.5, color = "white") +
+  geom_boxplot() +
+  scale_y_log10() +
+  theme(
+    axis.text.x = element_text(angle = 45)
+  ) +
+  coord_cartesian(ylim = y_limits)
+```
+
+Methodology has the outliers. There really shouldn't be negative percent change. Did I calculate something wrong?
+
+```{r}
+sota %>% 
+  unnest(categories) %>% 
+  filter(categories == "Computer Vision") %>% 
+  group_by(task) %>% 
+  filter(any(percent_change < 0)) %>% 
+  ungroup() %>% 
+  select(
+    paper_id, 
+    paper_date, 
+    task, 
+    metric_name, 
+    metric_result, 
+    percent_change
+  ) %>% 
+  arrange(task, metric_name, paper_date)
+```
+
+
+
+## SOTA progress
+
+```{r}
+sota %>% 
+  drop_na(percent_change, paper_date)   %>% 
+  filter(metric_name != "Number of params") %>% 
+  filter(categories != "Playing Games") %>% 
+  filter(percent_change > 0) %>%
+  unnest(categories) %>% 
+  ggplot(aes(days_written_after_first_in_benchmark, percent_change, color = categories)) +
+  geom_point() 
+
+# sota %>% 
+#   drop_na(percent_change, paper_date)   %>% 
+#   filter(metric_name != "Number of params") %>% 
+#   filter(categories != "Playing Games") %>% 
+#   filter(percent_change > 0) %>%
+#   unnest(categories) %>% 
+#   ggplot(aes(days_written_after_first_in_benchmark, percent_change, color = categories)) +
+#   geom_smooth(se = FALSE)
+
+sota %>% 
+  unnest(categories) %>% 
+  filter(categories == "Playing Games")
+```
+
+```{r}
+sota %>% 
+  drop_na(percent_change, paper_date)   %>% 
+  unnest(categories) %>% 
+  filter(
+    metric_name != "Number of params",
+    categories != "Playing Games",
+    percent_change != 0
+  ) %>% 
+  ggplot(aes(paper_date, percent_change, color = categories)) +
+  geom_hline(yintercept = 0) +
+  geom_point() 
+```
+
+```{r}
+tasks <- 
+  c(
+    "Text Classification",
+    "Speech Recognition",
+    "Face Detection"
+  )
+
+sota %>% 
+  filter(task %in% tasks) %>% 
+  group_by(task) %>% 
+  mutate(n_papers = n()) %>% 
+  ungroup() %>% 
+  filter(
+    n_papers > 1, 
+    metric_name != "Number of params"
+  ) %>% 
+  drop_na(paper_date, percent_change) %>% 
+  ggplot(aes(paper_date, percent_change, color = task)) +
+  geom_hline(yintercept = 0, color = "white", size = 2) +
+  geom_point() 
+
+
+sota %>% 
+  filter(task %in% tasks) %>% 
+  group_by(task, metric_name) %>% 
+  filter(any(percent_change < 0)) %>% 
+  ungroup() %>% 
+  arrange(paper_date) %>% 
+  select(paper_title, metric_name, metric_result, percent_change, days_written_after_first_in_benchmark)
+```
+
+```{r}
+sota %>% 
+  drop_na(percent_change, paper_date)   %>% 
+  unnest(categories) %>% 
+  filter(
+    metric_name != "Number of params",
+    categories == "Natural Language Processing",
+    percent_change != 0
+  ) %>% 
+  ggplot(aes(paper_date, percent_change)) +
+  geom_hline(yintercept = 0) +
+  geom_point() 
+```
+
+
+

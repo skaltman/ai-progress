@@ -1,5 +1,5 @@
 ---
-title: "researchers"
+title: "arXiv authors"
 author: "Sara Altman"
 date: "2020-02-08"
 output: github_document
@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r warning=FALSE, message=FALSE}
 library(tidyverse)
 
-authors <- read_rds(here::here("data/authors.rds"))
+authors <- read_rds(here::here("data/arxiv/arxiv_authors.rds"))
 ```
 
 ```{r}
@@ -54,28 +54,5 @@ authors_entry <-
 
 authors_entry %>% 
   rename(total_authors = num_authors)
-```
-
-
-
-
-
-```{r}
-reticulate::import_from_path("scholarly", "~/./miniconda3/lib/python3.6/site-packages")
-```
-
-```{r}
-papers$title[[1]]
-papers
-```
-
-
-```{python}
-import scholarly
-search_query = scholarly.search_keyword('Haptics')
-print(next(search_query))
-
-search_query = scholarly.search_pubs_query("Lasso type classifiers with a reject option")
-print(next(search_query))
 ```
 

@@ -16,7 +16,7 @@ knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 
 # Parameters
-file_sota <- here::here("data/sota_nested.rds")
+file_sota <- here::here("data/sota/sota_nested.rds")
 #===============================================================================
 
 sota <- read_rds(file_sota)
