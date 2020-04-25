@@ -13,6 +13,8 @@ file_arxiv <- here::here("data/arxiv/papers.rds")
 
 file_authors <-  here::here("data/microsoft/ms_authors.rds")
 file_authors_new <- here::here("data/microsoft/ms_authors_new.rds")
+file_authors_new_0 <- here::here("data/microsoft/ms_authors_new_0.rds")
+file_authors_new_1 <- here::here("data/microsoft/ms_authors_new_1.rds")
 file_authors_new_10 <- here::here("data/microsoft/ms_authors_new_10.rds")
 file_authors_new_subfields <-
   here::here("data/microsoft/ms_authors_new_subfields.rds")
@@ -74,6 +76,15 @@ new_authors_all <-
   write_rds(file_authors_new) %>%
   sheets_write(sheet_key, sheet = ws_all)
 
+new_authors_0 <-
+  authors %>%
+  group_by(author_id) %>%
+  filter(all(citations == 0)) %>%
+  ungroup() %>%
+  author_entry_dates() %>%
+  write_rds(file_authors_new_0)
+
+
 new_authors_10 <-
   authors %>%
   group_by(author_id) %>%
@@ -88,6 +99,7 @@ authors %>%
   filter(any(citations >= 1)) %>%
   ungroup() %>%
   author_entry_dates() %>%
+  write_rds(file_authors_new_1) %>%
   sheets_write(sheet_key, sheet = ws_1)
 
 authors_by_subfield <-

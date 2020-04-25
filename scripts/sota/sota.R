@@ -10,9 +10,10 @@ library(googlesheets4)
 # Parameters
 sheet_key <- "1zUJ9PhhdUoFSxZMXbYp9EDSTqRKssIysRsofs9FrBA4"
 ws <- "sota_cleaned.csv"
-file_out_nested <- here::here("data/sota_nested.rds")
-file_out_unnested <- here::here("data/sota.rds")
-file_out_descriptions <- here::here("data/sota_task_descriptions.rds")
+file_out_nested <- here::here("data/sota/sota_nested.rds")
+file_out_unnested <- here::here("data/sota/sota.rds")
+file_out_unfiltered <- here::here("data/sota/sota_unfiltered.rds")
+file_out_descriptions <- here::here("data/sota/sota_task_descriptions.rds")
 
 # Columns to remove from cleaned data
 sota_remove_cols <-
@@ -108,7 +109,7 @@ sota_nested <-
   ) %>%
   write_rds(file_out_nested)
 
-sota <-
+sota_unfiltered <-
   sota_nested %>%
   select_at(sota_remove_cols) %>%
   unnest(
@@ -126,7 +127,18 @@ sota <-
         minimize_metric,
         metric_result * -1,
         metric_result
-      ),
+      )
+  ) %>%
+  ungroup() %>%
+  write_rds(file_out_unfiltered)
+
+sota_unfiltered %>%
+  drop_na(paper_date, metric_name, metric_result) %>% # Removes 1,488 - 940 = 548 rows
+  group_by(benchmark_id, metric_name, paper_date) %>%
+  filter(near(metric_standard, max(metric_standard, na.rm = TRUE))) %>% # Removes 940 - 739 = 201 rows
+  top_n(n = 1, wt = index) %>% # There are five rows where the metric_standards are the exact same. Arbitrary take the first.
+  ungroup() %>%
+  mutate(
     percent_change =
       (metric_standard - first(metric_standard, order_by = paper_date)) /
       abs(first(metric_standard, order_by = paper_date)) * 100
@@ -134,7 +146,7 @@ sota <-
   ungroup() %>%
   write_rds(file_out_unnested)
 
-sota %>%
+sota_nested %>%
   distinct(task, description) %>%
   write_rds(file_out_descriptions)
 

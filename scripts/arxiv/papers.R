@@ -1,7 +1,7 @@
 # Download papers data from arxiv API
 
 # Reads in existing papers.rds (if it exists), and then uses the number of papers
-# in papers.rds to determine which new papers to as the API for
+# in papers.rds to determine which new papers to ask the API for
 
 # Author: Sara Altman
 # Version: 2020-01-30
@@ -9,19 +9,21 @@
 # Libraries
 library(tidyverse)
 library(arxivapi)
-library(arrow)
 
 # Parameters
-file_subfield_counts <- here::here("data/subfield_counts.rds")
+  # Total number of papers by subfield
+file_subfield_counts <- here::here("data/arxiv/subfield_counts.rds")
+  # All papers
 file_all <- here::here("data/papers_all.rds")
+  # Unique papers
 file_distinct <- here::here("data/papers.rds")
-file_distinct_parquet <- here::here("data/papers.parquet")
-dir_data <- here::here("data")
-sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
-ws <- "Papers"
+  # Directory to put data
+dir_data <- here::here("data/arxiv/")
+  # Batch size (for querying arxiv API)
 BATCH_SIZE <- 1000
+  # Seconds to slip between queries
 SLEEP <- 3
-
+  # Column order for final, cleaned, unique data
 col_order <-
   c(
     "id",
@@ -37,7 +39,7 @@ col_order <-
   )
 #===============================================================================
 
-get_subfield_papers <- function(code, start = 0, limit) {
+get_subfield_papers <- function(code, limit) {
   query <- str_glue("cat:{code}")
 
   message("Retrieving papers for ", code)
@@ -45,13 +47,13 @@ get_subfield_papers <- function(code, start = 0, limit) {
   papers_subfield <-
     arxiv_request(
       query = query,
-      start = start,
+      start = 0,
       limit = limit,
       batch_size = BATCH_SIZE,
       sleep = SLEEP
     ) %>%
     mutate(query_id = code) %>%
-    write_rds(path_subfield_data(code))
+    write_rds(path_subfield_data(code)) # write out data for one subfield to retain progress
 
   papers_subfield
 }
@@ -66,8 +68,8 @@ path_subfield_data <- function(code) {
 
 papers <-
   read_rds(file_subfield_counts) %>%
-  mutate(start = 0) %>%
-  select(code, start, limit = count) %>%
+  select(code, limit = count) %>%
+  filter(code == "cs.NE") %>%
   pmap_dfr(., get_subfield_papers) %>%
   mutate_at(
     vars(authors, categories),
@@ -78,13 +80,13 @@ papers <-
   mutate_at(vars(submitted, updated), lubridate::as_date) %>%
   mutate_if(is.character, na_if, "")
 
-papers %>%
-  write_rds(file_all, compress = "gz")
-
-papers %>%
-  distinct(id, .keep_all = TRUE) %>%
-  distinct(title, .keep_all = TRUE) %>%
-  select(col_order) %>% # There are 123 duplicate titles. Most of these appear to be the same paper, listed multiple times (see papers.Rmd)
-  write_rds(file_distinct, compress = "gz") %>%
-  write_parquet(file_distinct_parquet) %>%
-  write_sheet(ss = sheet_key, sheet = ws)
+# # Write out all papers
+# papers %>%
+#   write_rds(file_all, compress = "gz")
+#
+# # Find the distinct papers and write out
+# papers %>%
+#   distinct(id, .keep_all = TRUE) %>%
+#   distinct(title, .keep_all = TRUE) %>%
+#   select(col_order) %>% # There are 123 duplicate titles. Most of these appear to be the same paper, listed multiple times (see papers.Rmd)
+#   write_rds(file_distinct, compress = "gz")
