@@ -13,10 +13,8 @@ library(arxivapi)
 # Parameters
   # Total number of papers by subfield
 file_subfield_counts <- here::here("data/arxiv/subfield_counts.rds")
-  # All papers
-file_all <- here::here("data/papers_all.rds")
-  # Unique papers
-file_distinct <- here::here("data/papers.rds")
+  # Output file
+path_out <- here::here("data/arxiv/papers.rds")
   # Directory to put data
 dir_data <- here::here("data/arxiv/")
   # Batch size (for querying arxiv API)
@@ -69,7 +67,6 @@ path_subfield_data <- function(code) {
 papers <-
   read_rds(file_subfield_counts) %>%
   select(code, limit = count) %>%
-  filter(code == "cs.NE") %>%
   pmap_dfr(., get_subfield_papers) %>%
   mutate_at(
     vars(authors, categories),
@@ -80,13 +77,9 @@ papers <-
   mutate_at(vars(submitted, updated), lubridate::as_date) %>%
   mutate_if(is.character, na_if, "")
 
-# # Write out all papers
-# papers %>%
-#   write_rds(file_all, compress = "gz")
-#
-# # Find the distinct papers and write out
-# papers %>%
-#   distinct(id, .keep_all = TRUE) %>%
-#   distinct(title, .keep_all = TRUE) %>%
-#   select(col_order) %>% # There are 123 duplicate titles. Most of these appear to be the same paper, listed multiple times (see papers.Rmd)
-#   write_rds(file_distinct, compress = "gz")
+# Find the distinct papers and write out
+papers %>%
+  distinct(id, .keep_all = TRUE) %>%
+  distinct(title, .keep_all = TRUE) %>%
+  select(col_order) %>% # There are 123 duplicate titles. Most of these appear to be the same paper, listed multiple times
+  write_rds(path_out, compress = "gz")
