@@ -6,22 +6,20 @@
 # Libraries
 library(tidyverse)
 library(aRxiv)
-library(googlesheets4)
 
 # Parameters
-file_subfields <- here::here("data/subfields.rds")
-file_out <- here::here("data/subfield_counts.rds")
-sheet_key <- "1B-aG5p-Ro4aPMIkaK7CDKoDSVHEn9PuDAzRS3rpQCnE"
-ws_subfields <- "Subfield counts"
+file_subfields <- here::here("data/arxiv/subfields.yml")
+file_out <- here::here("data/arxiv/subfield_counts.rds")
 #===============================================================================
 
 subfield_counts <-
-  read_rds(file_subfields) %>%
-  mutate(count = map_int(code, ~ arxiv_count(str_glue("cat:{.}"))))
-
-subfield_counts %>%
+  yaml::read_yaml(file_subfields) %>%
+  map_dfr(
+    ~ tibble(
+      field = .$field,
+      code = .$code,
+      count = arxiv_count(str_glue("cat:{.$code}")) %>% as.integer()
+    ),
+    .id = "subfield"
+  ) %>%
   write_rds(file_out)
-
-subfield_counts %>%
-  sheets_write(sheet_key, sheet = ws_subfields)
-

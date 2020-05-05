@@ -1,0 +1,21 @@
+Artificial Intelligence:
+  field: Computer Science
+  code: cs.AI
+Computation and Language:
+  field: Computer Science
+  code: cs.CL
+Computer Vision and Pattern Recognition:
+  field: Computer Science
+  code: cs.CV
+Learning:
+  field: Computer Science
+  code: cs.LG
+Machine Learning:
+  field: Statistics
+  code: stat.ML
+Neural and Evolutionary Computing:
+  field: Computer Science
+  code: cs.NE
+Robotics:
+  field: Computer Science
+  code: cs.RO
