@@ -12,9 +12,10 @@ library(arxivapi)
 
 # Parameters
   # Total number of papers by subfield
+script_subfield_counts <- here::here("scripts/arxiv/subfield_counts.R")
 file_subfield_counts <- here::here("data/arxiv/subfield_counts.rds")
   # Output file
-path_out <- here::here("data/arxiv/papers.rds")
+file_out <- here::here("data/arxiv/papers.rds")
   # Directory to put data
 dir_data <- here::here("data/arxiv/")
   # Batch size (for querying arxiv API)
@@ -36,6 +37,8 @@ col_order <-
     "query_id"
   )
 #===============================================================================
+
+source(script_subfield_counts)
 
 get_subfield_papers <- function(code, limit) {
   query <- str_glue("cat:{code}")
@@ -82,4 +85,4 @@ papers %>%
   distinct(id, .keep_all = TRUE) %>%
   distinct(title, .keep_all = TRUE) %>%
   select(col_order) %>% # There are 123 duplicate titles. Most of these appear to be the same paper, listed multiple times
-  write_rds(path_out, compress = "gz")
+  write_rds(file_out, compress = "gz")

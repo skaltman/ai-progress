@@ -1,0 +1,173 @@
+---
+title: Visualizations
+author: 
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message=FALSE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+library(lubridate)
+
+# Parameters
+MAX_DATE <- "2019-12-31"
+DATE_BREAKS <- "5 years"
+FACTOR_INCREASE_YEARS_1 <- c(1999, 2019)
+FACTOR_INCREASE_YEARS_2 <- c(2009, 2019)
+  # File with authors data
+file_authors <- here::here("data/microsoft/ms_authors_new.rds")
+  # File with authors by subfield
+file_authors_subfields <- 
+  here::here("data/microsoft/ms_authors_new_subfields.rds")
+  # File with subfield code-name mappings
+file_subfields <- here::here("data/arxiv/subfields.yml")
+#===============================================================================
+
+authors <-
+  file_authors %>% 
+  read_rds() %>% 
+  filter(date < MAX_DATE)
+
+subfields <-
+  file_subfields %>% 
+  yaml::read_yaml() %>% 
+  map_dfr(~ tibble(field = .$field, code = .$code), .id = "name")
+
+authors_subfields <-
+  file_authors_subfields %>% 
+  read_rds() %>% 
+  left_join(subfields, by = c("subfield" = "code")) %>% 
+  relocate(field, name, subfield, .after = date) %>% 
+  rename(subfield_name = name, subfield_code = subfield)
+```
+
+## New researchers
+
+### Total researchers over time
+
+```{r}
+authors %>% 
+  ggplot(aes(date, total_authors)) +
+  geom_line() +
+  scale_x_date(date_breaks = DATE_BREAKS, date_labels = "%Y") +
+  labs(
+    x = "Date",
+    y = "Total researchers",
+    title = "Total researchers over time",
+    caption = "Source: arXiv and Microsoft"
+  )
+```
+
+### New researchers (table)
+
+```{r}
+authors_by_year <-
+  authors %>% 
+  group_by(year = year(date)) %>% 
+  summarize(new_researchers = sum(new_authors))
+
+authors_by_year %>% 
+  mutate(
+    total_researchers = cumsum(new_researchers),
+    `% new researchers` =
+      (lag(new_researchers) / new_researchers) * 100,
+    `% growth of total researchers` = 
+      ((total_researchers - lag(total_researchers)) / 
+         lag(total_researchers)) * 100
+  ) %>% 
+  rename(
+    Year = year,
+    `New researchers` = new_researchers,
+    `Total researchers` = total_researchers
+  ) %>% 
+  knitr::kable(
+    digits = 2
+  )
+```
+
+### Factor increase (table)
+
+```{r}
+factor_increase <- function(var, var_year, years) {
+  var[var_year == years[[2]]] / var[var_year == years[[1]]]
+}
+
+authors_by_year %>% 
+  mutate(total_researchers = cumsum(new_researchers)) %>% 
+  summarize(
+     across(
+       -year, 
+       list(
+         first = ~ factor_increase(., year, FACTOR_INCREASE_YEARS_1),
+         second = ~ factor_increase(., year, FACTOR_INCREASE_YEARS_2)
+       )
+      )
+  ) %>% 
+  pivot_longer(
+    cols = everything(), 
+    names_to = c("variable", "period"),
+    names_pattern = "(.*)_(\\w+)"
+  ) %>% 
+  pivot_wider(names_from = variable, values_from = value) %>% 
+  mutate(
+    period = 
+      recode(
+        period,
+        first = str_c(FACTOR_INCREASE_YEARS_1, collapse = "-"),
+        second = str_c(FACTOR_INCREASE_YEARS_2, collapse = "-")
+      )
+  ) %>% 
+  rename(
+    Period = period,
+    `New researchers factor increase` = new_researchers,
+    `Total researchers factor increase` = total_researchers
+  ) %>% 
+  knitr::kable(digits = 3)
+```
+
+### Total authors by subfield per year 
+
+```{r}
+authors_subfields %>% 
+  mutate(
+    subfield_name = str_wrap(subfield_name, width = 20) 
+  ) %>% 
+  ggplot(aes(date, total_authors, color = subfield_name)) + 
+  geom_line() +
+  scale_x_date(date_breaks = DATE_BREAKS, date_labels = "%Y") +
+  labs(
+    x = "Date",
+    y = "Total researchers",
+    color = "Subfield"
+  ) 
+```
+
+### Total authors by subfield per year (table)
+
+```{r}
+authors_subfields %>%
+  mutate(
+    subfield =
+      str_glue("{subfield_name} ({subfield_code})") %>% as.character()
+  ) %>%
+  group_by(year = year(date), subfield) %>%
+  summarize(new_authors = sum(new_authors)) %>%
+  ungroup() %>%
+  mutate(total_authors = cumsum(new_authors)) %>%
+  select(-new_authors) %>%
+  pivot_wider(
+    names_from = subfield,
+    values_from = total_authors,
+    values_fill = list(total_authors = 0)
+  ) %>% 
+  knitr::kable()
+```
+
+
