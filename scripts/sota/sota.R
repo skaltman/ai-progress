@@ -1,5 +1,5 @@
 # Read in, tidy, and write out original SOTA data
-# Source: https://paperswithcode.com/
+# Source: https://paperswithcode.com/about
 
 # Author: Sara Altman
 # Version: 2020-05-01
@@ -8,11 +8,21 @@
 library(tidyverse)
 
 # Parameters
-file_in <- here::here("data/sota/evaluation-tables.json")
+  # URL for original data
+url_data <- "https://paperswithcode.com/media/about/evaluation-tables.json.gz"
+  # Output file
 file_out <- here::here("data/sota/sota.rds")
+  # Directory to download original data
+dir_data <- here::here("data/sota")
 #===============================================================================
 
-# TODO: DEAL WITH THE DASHES.
+dest <- fs::path(dir_data, "evaluation_tables.json")
+download.file(url_data, destfile = dest)
+
+original_json <-
+  dest %>%
+  jsonlite::read_json()
+
 clean_metrics <- function(metric, multiplier) {
   metric <-
     metric %>%
@@ -32,10 +42,6 @@ clean_metrics <- function(metric, multiplier) {
     TRUE                            ~ as.double(metric)
   )
 }
-
-original_json <-
-  file_in %>%
-  jsonlite::read_json()
 
 sota <-
   tibble(
