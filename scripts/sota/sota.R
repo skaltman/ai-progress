@@ -46,7 +46,7 @@ clean_metrics <- function(metric, multiplier) {
 sota <-
   tibble(
     task = map_chr(original_json, "task"),
-    categories = map(original_json, "categories"),
+    categories = map(original_json, ~ .$categories %>% unlist()),
     datasets = map(original_json, "datasets")
   ) %>%
   unnest(datasets) %>% # drops tasks with no listed datasets
@@ -65,6 +65,7 @@ sota <-
     values_to = "metric_result_original",
     indices_to = "metric_name"
   ) %>%
+  unnest(cols = categories) %>%
   mutate(
     paper_date = lubridate::as_date(paper_date),
     multiplier = str_extract(metric_result_original, "[KkMmBb\\%]$"),
