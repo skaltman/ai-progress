@@ -72,5 +72,6 @@ sota <-
     metric_result = clean_metrics(metric_result_original, multiplier)
   ) %>%
   select(-datasets, -sota, -rows, -multiplier, -metric_result_original) %>%
+  mutate(across(where(is.character), ~ na_if(., ""))) %>%
   write_rds(file_out)
 
