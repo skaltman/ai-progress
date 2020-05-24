@@ -1,152 +1,69 @@
-# Read in SOTA data from Google Sheets; write out to rds
+# Read in, tidy, and write out original SOTA data
+# Source: https://paperswithcode.com/
 
 # Author: Sara Altman
-# Version: 2020-03-07
+# Version: 2020-05-01
 
 # Libraries
 library(tidyverse)
-library(googlesheets4)
 
 # Parameters
-sheet_key <- "1zUJ9PhhdUoFSxZMXbYp9EDSTqRKssIysRsofs9FrBA4"
-ws <- "sota_cleaned.csv"
-file_out_nested <- here::here("data/sota/sota_nested.rds")
-file_out_unnested <- here::here("data/sota/sota.rds")
-file_out_unfiltered <- here::here("data/sota/sota_unfiltered.rds")
-file_out_descriptions <- here::here("data/sota/sota_task_descriptions.rds")
-
-# Columns to remove from cleaned data
-sota_remove_cols <-
-  vars(
-    -metrics,
-    -description,
-    -source_link,
-    -synonyms,
-    -model_links,
-    -paper_url,
-    -first_metric_result,
-    -contains("first_paper"),
-    -contains("last_paper")
-  )
-
-# Metrics that are minimized, not maximized
-minimize_metrics <-
-  c(
-    "MAE",
-    "MSE",
-    "MAE @ 12 step",
-    "NME",
-    "RMSE",
-    "RMSE@80%Train",
-    "RMS",
-    "Viewpoint I AEPE",
-    "rect mask l2 err",
-    "mse (10^-3)",
-    "ERR@20",
-    "free-form mask l1 err	1",
-    "free-form mask l2 err",
-    "free-form mask l1 err",
-    "Search Time (GPU days)",
-    "Cumulative regret",
-    "Number of params",
-    "FID"
-  )
-
-# Fix a particular metric
-# The original was a Pearson correlation between -100 and 100 instead of -1 and 1
-FIX_INDEX <- 413
-FIX_MULTIPLIER <- .001
-metrics_to_rescale <-
-  c(
-    "Accuracy",
-    "Pearson Correlation",
-    "Top-1 Error Rate"
-  )
+file_in <- here::here("data/sota/evaluation-tables.json")
+file_out <- here::here("data/sota/sota.rds")
 #===============================================================================
 
-separate_values <- function(x) {
-  str_remove_all(x, pattern = "[\\'\\[\\]\\{\\}]") %>%
-    str_split(pattern = ", ")
-}
+# TODO: DEAL WITH THE DASHES.
+clean_metrics <- function(metric, multiplier) {
+  metric <-
+    metric %>%
+    str_trim(side = "both") %>%
+    str_remove_all("[KkMmBb\\%&]") %>%
+    str_remove_all("\\(.*\\)") %>%
+    str_remove_all("\\*") %>%
+    str_replace(",", "\\.") %>%
+    str_replace("([^0-9]$)|([:alpha:])|(.*\\/.*)|:", NA_character_) %>%
+    na_if("")
 
-metrics_tibble <- function(metrics) {
-  tibble(
-    metric = str_extract(metrics, ".*(?=: )"),
-    value = str_extract(metrics, "(?<=: ).*")
-  )
-}
-
-rescale_metric <- function(name, value) {
   case_when(
-    name %in% metrics_to_rescale & value > 1 & value < 100   ~ value / 100,
-    name %in% metrics_to_rescale & value > 1 & value <= 1000 ~ value / 1000,
-    TRUE                                                     ~ value
+    multiplier == "k"               ~ as.double(metric) * 1e3,
+    multiplier == "m"               ~ as.double(metric) * 1e6,
+    multiplier == "b"               ~ as.double(metric) * 1e9,
+    multiplier == "%"               ~ as.double(metric) / 100,
+    TRUE                            ~ as.double(metric)
   )
 }
 
-clean_metrics <- function(metric_name, metric_result) {
-  tibble::tibble(metric_result) %>%
-    mutate(
-      multiplier = if_else(str_detect(metric_result, "B$"), 1e9, 1),
-      metric_result =
-        (str_remove_all(metric_result, "[^\\d\\.]") %>%
-        na_if("") %>%
-        as.double()) * multiplier,
-      metric_result = rescale_metric(metric_name, metric_result)
-    ) %>%
-    pull(metric_result)
-}
+original_json <-
+  file_in %>%
+  jsonlite::read_json()
 
-sota_nested <-
-  sheet_key %>%
-  sheets_read(sheet = ws) %>%
-  select(-...1) %>%
-  mutate_at(vars(categories, metrics), separate_values) %>%
+sota <-
+  tibble(
+    task = map_chr(original_json, "task"),
+    categories = map(original_json, "categories"),
+    datasets = map(original_json, "datasets")
+  ) %>%
+  unnest(datasets) %>% # drops tasks with no listed datasets
+  hoist(datasets, dataset = "dataset", sota = "sota") %>%
+  hoist(sota, rows = "rows") %>%
+  unnest(rows, keep_empty = TRUE) %>%
+  hoist(
+    rows,
+    paper_title = "paper_title",
+    paper_date = "paper_date",
+    model_name = "model_name",
+    metrics = "metrics"
+  ) %>%
+  unnest_longer(
+    col = metrics,
+    values_to = "metric_result_original",
+    indices_to = "metric_name"
+  ) %>%
   mutate(
-    metrics = map(metrics, metrics_tibble),
-    metric_name = map(metric_name, as.character),
-    metric_result = map(metric_result, as.character)
+    paper_date = lubridate::as_date(paper_date),
+    multiplier = str_extract(metric_result_original, "[KkMmBb\\%]$"),
+    metric_result = clean_metrics(metric_result_original, multiplier)
   ) %>%
-  write_rds(file_out_nested)
-
-sota_unfiltered <-
-  sota_nested %>%
-  select_at(sota_remove_cols) %>%
-  unnest(
-    cols = c(metric_name, metric_result),
-    keep_empty = TRUE
-  ) %>%
-  group_by(benchmark_id, metric_name) %>%
-  mutate(
-    metric_result = clean_metrics(metric_name, metric_result),
-    minimize_metric =
-      str_detect(metric_name, "([Ee]rror)|(AEPE)|(MPJPE)") |
-      metric_name %in% minimize_metrics,
-    metric_standard =
-      if_else(
-        minimize_metric,
-        metric_result * -1,
-        metric_result
-      )
-  ) %>%
-  ungroup() %>%
-  write_rds(file_out_unfiltered)
-
-sota_unfiltered %>%
-  drop_na(paper_date, metric_name, metric_result) %>% # Removes 1,488 - 940 = 548 rows
-  group_by(benchmark_id, metric_name, paper_date) %>%
-  filter(near(metric_standard, max(metric_standard, na.rm = TRUE))) %>% # Removes 940 - 739 = 201 rows
-  top_n(n = 1, wt = index) %>% # There are five rows where the metric_standards are the exact same. Arbitrary take the first.
-  ungroup() %>%
-  mutate(
-    percent_change =
-      (metric_standard - first(metric_standard, order_by = paper_date)) /
-      abs(first(metric_standard, order_by = paper_date)) * 100
-  ) %>%
-  ungroup() %>%
-  write_rds(file_out_unnested)
-
-sota_nested %>%
-  distinct(task, description) %>%
-  write_rds(file_out_descriptions)
+  select(-datasets, -sota, -rows, -multiplier, -metric_result_original) %>%
+  write_rds(file_out)
 
