@@ -65,8 +65,6 @@ sota <-
     values_to = "metric_result_original",
     indices_to = "metric_name"
   ) %>%
-  unnest(cols = categories) %>%
-  rename(category = categories) %>%
   mutate(
     paper_date = lubridate::as_date(paper_date),
     multiplier = str_extract(metric_result_original, "[KkMmBb\\%]$"),
