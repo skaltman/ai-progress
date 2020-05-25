@@ -14,6 +14,30 @@ url_data <- "https://paperswithcode.com/media/about/evaluation-tables.json.gz"
 file_out <- here::here("data/sota/sota.rds")
   # Directory to download original data
 dir_data <- here::here("data/sota")
+  # Some patterns for the metrics to minimize
+minimize_pattern <- "([Ee]rror)|(AEPE)|(MPJPE)"
+  # The rest of the minimize metrics not picked up by the patterns
+minimize_metrics <-
+  c(
+    "MAE",
+    "MSE",
+    "MAE @ 12 step",
+    "NME",
+    "RMSE",
+    "RMSE@80%Train",
+    "RMS",
+    "Viewpoint I AEPE",
+    "rect mask l2 err",
+    "mse (10^-3)",
+    "ERR@20",
+    "free-form mask l1 err	1",
+    "free-form mask l2 err",
+    "free-form mask l1 err",
+    "Search Time (GPU days)",
+    "Cumulative regret",
+    "Number of params",
+    "FID"
+  )
 #===============================================================================
 
 dest <- fs::path(dir_data, "evaluation_tables.json")
@@ -38,12 +62,12 @@ clean_metrics <- function(metric, multiplier) {
     multiplier == "k"               ~ as.double(metric) * 1e3,
     multiplier == "m"               ~ as.double(metric) * 1e6,
     multiplier == "b"               ~ as.double(metric) * 1e9,
-    multiplier == "%"               ~ as.double(metric) / 100,
+    #multiplier == "%"               ~ as.double(metric) / 100,
     TRUE                            ~ as.double(metric)
   )
 }
 
-sota <-
+sota2 <-
   tibble(
     task = map_chr(original_json, "task"),
     categories = map(original_json, ~ .$categories %>% unlist()),
@@ -68,9 +92,25 @@ sota <-
   mutate(
     paper_date = lubridate::as_date(paper_date),
     multiplier = str_extract(metric_result_original, "[KkMmBb\\%]$"),
-    metric_result = clean_metrics(metric_result_original, multiplier)
+    metric_result = clean_metrics(metric_result_original, multiplier),
+    across(where(is.character), ~ na_if(., "")),
+    minimize =
+      metric_name %in% minimize_metrics |
+      str_detect(metric_name, minimize_pattern)
   ) %>%
+  group_by(task, dataset, metric_name) %>%
+  arrange(paper_date) %>%
+  filter(
+    if_else(
+      minimize,
+      metric_result == cummin(metric_result),
+      metric_result == cummax(metric_result)
+    )
+  ) %>%
+  ungroup() %>%
   select(-datasets, -sota, -rows, -multiplier, -metric_result_original) %>%
-  mutate(across(where(is.character), ~ na_if(., ""))) %>%
   write_rds(file_out)
+
+
+
 
