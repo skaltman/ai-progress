@@ -1,0 +1,55 @@
+---
+title: Datasphere
+author: 
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+library(aiprogress)
+```
+
+## Global datasphere
+
+```{r}
+datasphere %>% 
+  ggplot(aes(year, size)) +
+  geom_point() +
+  geom_line() +
+  scale_x_continuous(breaks = scales::breaks_width(2)) +
+  labs(
+    x = "Year",
+    y = "Size (zettabytes)",
+    title = "Global datasphere real time data size, 2010-2025",
+    subtitle = "Values for 2019-2025 are projections",
+    caption = "Source: Statista/IDC"
+  )
+```
+
+### Volume of data created worldwide
+
+```{r}
+data_created %>% 
+  ggplot(aes(year, size)) +
+  geom_point() +
+  geom_line() +
+  scale_x_continuous(breaks = scales::breaks_width(2)) +
+  scale_y_continuous(breaks = scales::breaks_width(25)) +
+  labs(
+    x = "Year",
+    y = "Size (zettabytes)",
+    title = "Volume of data created worldwide, 2010-2025",
+    subtitle = "Values for 2019-2025 are projections",
+    caption = "Source: Statista/IDC"
+  )
+```
+
+
