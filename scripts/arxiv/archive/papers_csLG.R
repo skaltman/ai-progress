@@ -11,11 +11,12 @@ library(tidyverse)
 library(arxivapi)
 
 # Parameters
+SUBFIELD_CODE <- "cs.LG"
   # Total number of papers by subfield
 script_subfield_counts <- here::here("scripts/arxiv/subfield_counts.R")
 file_subfield_counts <- here::here("data/arxiv/subfield_counts.rds")
   # Output file
-file_out <- here::here("data/arxiv/papers.rds")
+file_out <- here::here(str_glue("data/arxiv/papers_{SUBFIELD_CODE}.rds"))
   # Directory to put data
 dir_data <- here::here("data/arxiv/")
   # Batch size (for querying arxiv API)
@@ -70,6 +71,7 @@ path_subfield_data <- function(code) {
 papers <-
   read_rds(file_subfield_counts) %>%
   select(code, limit = count) %>%
+  filter(code == SUBFIELD_CODE) %>%
   pmap_dfr(., get_subfield_papers) %>%
   mutate_at(
     vars(authors, categories),
