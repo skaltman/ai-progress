@@ -1,0 +1,96 @@
+---
+title: Papers with Code - SOTA
+author: Sara Altman 
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+library(lubridate)
+
+# Parameters
+MIN_OBSERVATIONS <- 5
+file_sota <- here::here("data/sota/sota.rds")
+file_group_counts <- here::here("data/sota/groups.rds")
+#===============================================================================
+
+groups <-
+  file_group_counts %>% 
+  read_rds() %>% 
+  filter(n >= MIN_OBSERVATIONS)
+
+sota <-
+  file_sota %>% 
+  read_rds() %>% 
+  drop_na(paper_date, metric_result) %>% 
+  group_by(group) %>% 
+  mutate(
+    n_results = n(),
+    metric_result = if_else(minimize, metric_result * -1, metric_result),
+    percent_change = 
+      (metric_result - lag(metric_result, order_by = paper_date)) / 
+      abs(lag(metric_result, order_by = paper_date)),
+    days_since_first_paper = (min(paper_date) %--% paper_date) / days(1)
+  ) %>% 
+  ungroup() 
+```
+
+## Number of SOTA results, by year
+
+```{r}
+sota %>%  
+  filter(
+    days_since_first_paper > 0, 
+    year(paper_date) < 2020
+  ) %>% 
+  mutate(
+    significant = 
+      case_when(
+        percent_change >= 0.5 ~ "Results with at least 50% increase",
+        percent_change >= 0.1 ~ "Results with at least 10% increase",
+        TRUE                  ~ "All results"
+      )
+  ) %>% 
+  count(significant, year = year(paper_date)) %>%
+  ggplot(aes(year, n, color = significant)) +
+  geom_point() +
+  geom_line() + 
+  scale_x_continuous(breaks = scales::breaks_width(1)) +
+  labs(
+    x = "Year",
+    y = "Number of results",
+    color = NULL,
+    title = "Number of SOTA results by year"
+  )
+```
+
+```{r message=FALSE}
+v <-
+  sota %>% 
+  group_by(year = year(paper_date)) %>%
+  summarize(
+    `all` = n(),
+    `10% increase` = sum(percent_change > 0.1, na.rm = TRUE),
+    `50% increase` = sum(percent_change > 0.5, na.rm = TRUE),
+    `100% increase` = sum(percent_change > 1, na.rm = TRUE),
+    across(
+      contains("%"), 
+      list(percent = ~ (. / n()) * 100), 
+      .names = "{col} ({fn})"
+    )
+  ) 
+
+v %>% 
+  knitr::kable(digits = 2)
+```
+
+
+
