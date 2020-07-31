@@ -1,0 +1,151 @@
+---
+title: 
+author: 
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+
+# Parameters
+START_YEAR_ARXIV <- 1991
+file_papers <- here::here("data/all/papers.rds")
+file_researchers <- here::here("data/microsoft/ms_authors.rds")
+#===============================================================================
+
+papers <- 
+  file_papers %>% 
+  read_rds() %>% 
+  filter(year >= START_YEAR_ARXIV)
+
+researchers <-
+  file_researchers %>% 
+  read_rds() %>% 
+  group_by(year = year(date)) %>% 
+  summarize(new_authors = sum(new_authors)) %>% 
+  mutate(
+    total_authors = cumsum(new_authors),
+    percent_increase_new_authors = 
+      ((total_authors - lag(total_authors)) / lag(total_authors)) * 100
+  ) %>% 
+  filter(year >= START_YEAR_ARXIV)
+```
+
+## Percent of all papers published to arXiv
+```{r}
+v <-
+  papers %>%
+  mutate(arxiv_to_all = cumsum(arxiv) / cumsum(ms)) %>% 
+  filter(year >= START_YEAR_ARXIV)
+
+v %>% 
+  ggplot(aes(year, arxiv_to_all)) +
+  geom_line() +
+  scale_x_continuous(
+    breaks = scales::breaks_width(5)
+  ) +
+  scale_y_continuous(
+    labels = scales::label_percent(),
+    breaks = scales::breaks_width(0.001)
+  ) +
+  labs(
+    x = "Year",
+    y = "Percent of all papers submitted to arXiv",
+    caption = "Source: arXiv and Microsoft",
+    title = "Percent of all papers submitted to arXiv, by year"
+  )
+```
+
+```{r}
+v %>% 
+  left_join(
+    researchers %>% 
+      select(year, total_authors), 
+    by = "year"
+  ) %>% 
+  summarize(
+    across(
+      c(arxiv_to_all, total_authors), 
+      list(
+        `1991-2019` = ~ .[year == 2019] / .[year == 1991],
+        `1999-2019` = ~ .[year == 2019] / .[year == 1999]
+      )
+      
+    )
+  ) %>% 
+  pivot_longer(
+    cols = everything(), 
+    names_to = c("variable", "period"),
+    names_pattern = "(.*)_(\\d+-\\d+)"
+  ) %>% 
+  pivot_wider(names_from = variable, values_from = value) %>% 
+  rename(
+    Period = period,
+    `New researchers factor increase` = new_researchers,
+    `Total researchers factor increase` = total_researchers
+  ) %>% 
+  knitr::kable(digits = 3)
+```
+
+```{r}
+v %>% 
+  left_join(researchers, by = "year") %>% 
+  ggplot(aes(arxiv_to_all, total_authors)) +
+  geom_point() +
+  geom_line()
+```
+
+```{r}
+papers %>% 
+  mutate(
+    year = as.integer(year),
+    across(-year, ~ (. - lag(.)) / lag(.))
+  ) %>% 
+  pivot_longer(
+    cols = -year, names_to = "type", values_to = "percent_increase"
+  ) %>% 
+  filter(year >= 2009, year < 2020) %>% 
+  mutate(type = fct_reorder2(type, year, percent_increase)) %>% 
+  ggplot(aes(year, percent_increase, color = type)) +
+  geom_line() +
+  scale_x_continuous(breaks = scales::breaks_width(1)) +
+  scale_y_continuous(labels = scales::label_percent())
+```
+
+```{r}
+papers %>% 
+  filter(year < 2020) %>% 
+  ggplot(aes(arxiv, ai)) +
+  geom_line() +
+  labs(
+    x = "Total number of papers on arXiv",
+    y = "AI papers on arXiv"
+  )
+```
+
+```{r}
+
+```
+
+```{r}
+v <-
+  papers %>% 
+  filter(year < 2020)
+
+fit <- lm(ai ~ poly(arxiv, degree = 3), data = v)
+
+v %>% 
+  modelr::add_residuals(fit) %>% 
+  ggplot(aes(arxiv, resid)) +
+  geom_line() +
+  geom_line(aes(y = resid), color = "blue")
+```
+

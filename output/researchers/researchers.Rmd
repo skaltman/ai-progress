@@ -1,5 +1,5 @@
 ---
-title: Visualizations
+title: Researchers
 author: 
 date: "`r Sys.Date()`"
 output: 
@@ -19,15 +19,29 @@ library(lubridate)
 # Parameters
 MAX_DATE <- "2019-12-31"
 DATE_BREAKS <- "5 years"
+RESEARCHER_BREAKS <- 2e4 
 FACTOR_INCREASE_YEARS_1 <- c(1999, 2019)
 FACTOR_INCREASE_YEARS_2 <- c(2009, 2019)
   # File with authors data
-file_authors <- here::here("data/microsoft/ms_authors_new.rds")
+file_authors <- here::here("data/microsoft/ms_authors.rds")
   # File with authors by subfield
 file_authors_subfields <- 
-  here::here("data/microsoft/ms_authors_new_subfields.rds")
+  here::here("data/microsoft/ms_authors_subfields.rds")
   # File with subfield code-name mappings
 file_subfields <- here::here("data/arxiv/subfields.yml")
+  # File with new authors + citation thresholds
+file_authors_citations <- here::here("data/microsoft/ms_authors_citations.rds")
+
+citation_levels <-
+  c(
+    "All authors",
+    "No citations",
+    "At least 1 citation",
+    "At least 5 citations",
+    "At least 10 citations",
+    "At least 100 citations",
+    "At least 1000 citations"
+  )
 #===============================================================================
 
 authors <-
@@ -44,8 +58,14 @@ authors_subfields <-
   file_authors_subfields %>% 
   read_rds() %>% 
   left_join(subfields, by = c("subfield" = "code")) %>% 
+  filter(date < MAX_DATE) %>% 
   relocate(field, name, subfield, .after = date) %>% 
   rename(subfield_name = name, subfield_code = subfield)
+
+authors_citations <-
+  file_authors_citations %>% 
+  read_rds() %>% 
+  filter(date < MAX_DATE)
 ```
 
 ## New researchers
@@ -57,6 +77,10 @@ authors %>%
   ggplot(aes(date, total_authors)) +
   geom_line() +
   scale_x_date(date_breaks = DATE_BREAKS, date_labels = "%Y") +
+  scale_y_continuous(
+    breaks = scales::breaks_width(RESEARCHER_BREAKS), 
+    labels = scales::label_comma()
+  ) + 
   labs(
     x = "Date",
     y = "Total researchers",
@@ -102,28 +126,20 @@ factor_increase <- function(var, var_year, years) {
 authors_by_year %>% 
   mutate(total_researchers = cumsum(new_researchers)) %>% 
   summarize(
-     across(
-       -year, 
-       list(
-         first = ~ factor_increase(., year, FACTOR_INCREASE_YEARS_1),
-         second = ~ factor_increase(., year, FACTOR_INCREASE_YEARS_2)
-       )
+    across(
+      -year, 
+      list(
+        `1999-2019` = ~ .[year == 2019] / .[year == 1999],
+        `2009-2019` = ~ .[year == 2019] / .[year == 2009]
       )
+    )
   ) %>% 
   pivot_longer(
     cols = everything(), 
     names_to = c("variable", "period"),
-    names_pattern = "(.*)_(\\w+)"
+    names_pattern = "(.*)_(\\d+-\\d+)"
   ) %>% 
   pivot_wider(names_from = variable, values_from = value) %>% 
-  mutate(
-    period = 
-      recode(
-        period,
-        first = str_c(FACTOR_INCREASE_YEARS_1, collapse = "-"),
-        second = str_c(FACTOR_INCREASE_YEARS_2, collapse = "-")
-      )
-  ) %>% 
   rename(
     Period = period,
     `New researchers factor increase` = new_researchers,
@@ -137,15 +153,25 @@ authors_by_year %>%
 ```{r}
 authors_subfields %>% 
   mutate(
-    subfield_name = str_wrap(subfield_name, width = 20) 
+    subfield_name = 
+      str_wrap(subfield_name, width = 20) %>% fct_reorder2(date, total_authors)
   ) %>% 
   ggplot(aes(date, total_authors, color = subfield_name)) + 
   geom_line() +
   scale_x_date(date_breaks = DATE_BREAKS, date_labels = "%Y") +
+  scale_y_continuous(
+    breaks = scales::breaks_width(10000), 
+    labels = scales::label_comma()
+  ) +
+  theme(
+    legend.text = element_text(size = 5)
+  ) +
   labs(
+    title = "Total researchers over time, by subfield",
     x = "Date",
     y = "Total researchers",
-    color = "Subfield"
+    color = NULL,
+    caption = "Source: arXiv and Microsoft"
   ) 
 ```
 
@@ -169,5 +195,42 @@ authors_subfields %>%
   ) %>% 
   knitr::kable()
 ```
+
+## New researchers -- citation thresholds
+
+```{r}
+v <-
+  authors_citations %>% 
+  bind_rows(
+    authors %>% mutate(citation_group = "All authors")
+  ) %>% 
+  mutate(
+    citation_group = factor(citation_group, levels = citation_levels)
+  )
+
+v %>% 
+  filter(year(date) >= 1990) %>% 
+  ggplot(aes(date, total_authors, color = citation_group)) +
+  geom_line() +
+    scale_x_date(date_breaks = DATE_BREAKS, date_labels = "%Y") +
+  scale_y_continuous(
+    breaks = scales::breaks_width(10000), 
+    labels = scales::label_comma()
+  ) +
+  theme(
+    legend.text = element_text(size = 6)
+  ) +
+  labs(
+    x = "Date",
+    y = "Total researchers",
+    color = NULL,
+    title = "Total researchers over time, with citation thresholds",
+    subtitle = "Starting on 2020-01-01",
+    caption = "Source: arXiv and Microsoft"
+  )
+```
+
+
+
 
 
