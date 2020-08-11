@@ -15,38 +15,9 @@ file_out <- here::here("data/sota/sota.rds")
   # Output file for paper counts
 file_group_counts <- here::here("data/sota/groups.rds")
   # File with metrics to minimize, not maximize
-file_minimize_metrics <- here::here("data/sota/minimize_metrics.yml")
+file_metric_patterns <- here::here("data/sota/metric_patterns.yml")
   # Directory to download original data
 dir_data <- here::here("data/sota")
-#   # Some patterns for the metrics to minimize
-# minimize_pattern <- "([Ee]rror)|(AEPE)|(MPJPE)"
-#   # The rest of the minimize metrics not picked up by the patterns
-# minimize_metrics <-
-#   c(
-#     "MAE",
-#     "MSE",
-#     "MAE @ 12 step",
-#     "NME",
-#     "RMSE",
-#     "RMSE@80%Train",
-#     "RMS",
-#     "Viewpoint I AEPE",
-#     "rect mask l2 err",
-#     "mse (10^-3)",
-#     "ERR@20",
-#     "free-form mask l1 err	1",
-#     "free-form mask l2 err",
-#     "free-form mask l1 err",
-#     "Search Time (GPU days)",
-#     "Cumulative regret",
-#     "Number of params",
-#     "Params",
-#     "PARAMS",
-#     "FID",
-#     "MR",
-#     "NLL",
-#     "Log Loss"
-#   )
 #===============================================================================
 
 dest <- fs::path(dir_data, "evaluation_tables.json")
@@ -56,8 +27,14 @@ original_json <-
   dest %>%
   jsonlite::read_json()
 
-minimize_metrics <-
-  yaml::read_yaml(file_minimize_metrics)$minimize_metrics
+patterns_all <-
+  yaml::read_yaml(file_metric_patterns) %>%
+  map(str_c, collapse = "|")
+
+patterns_error <- patterns_all$error_patterns
+patterns_accuracy <- patterns_all$accuracy_patterns
+patterns_minimize <-
+  str_c(patterns_all$minimize_patterns, patterns_error, sep = "|")
 
 clean_metrics <- function(metric, multiplier) {
   metric <-
@@ -74,11 +51,57 @@ clean_metrics <- function(metric, multiplier) {
     multiplier == "k"               ~ as.double(metric) * 1e3,
     multiplier == "m"               ~ as.double(metric) * 1e6,
     multiplier == "b"               ~ as.double(metric) * 1e9,
-    #multiplier == "%"               ~ as.double(metric) / 100,
     TRUE                            ~ as.double(metric)
   )
 }
 
+cumulative_best_result <- function(value, name) {
+  minimize <- str_detect(name, patterns_minimize)
+
+  if_else( # Only include results that are better than the previous ones
+    minimize,
+    value == cummin(value),
+    value == cummax(value)
+  )
+}
+
+paper_best_result <- function(value, name) {
+  minimize <- str_detect(name, patterns_minimize)
+  accuracy <- str_detect(name, patterns_accuracy)
+
+  if_else(
+    minimize | accuracy,
+    value == min(value),
+    value  == max(value)
+  )
+}
+
+accuracy_to_error <- function(value, name) {
+  accuracy <- str_detect(name, patterns_accuracy)
+
+  case_when(
+    !accuracy                            ~ value,
+    accuracy & all(value <= 1)           ~ 100 - (value * 100),
+    accuracy & all(value <= 100)         ~ 100 - value,
+    TRUE                                 ~ NA_real_
+  )
+}
+
+# Log error metrics
+# (including accuracy metrics that were previously turned into error metrics)
+# Non-vectorized to avoid warnings about NaNs
+log_metrics <- function(value, name) {
+  error <- str_detect(name, patterns_error)
+  accuracy <- str_detect(name, patterns_accuracy)
+
+  if (error | accuracy) {
+    log(value)
+  } else {
+    value
+  }
+}
+
+# All results, but cleaned up and rectangled
 sota_all <-
   tibble(
     task = map_chr(original_json, "task"),
@@ -105,58 +128,34 @@ sota_all <-
     paper_date = lubridate::as_date(paper_date),
     multiplier = str_extract(metric_result_original, "[KkMmBb\\%]$"),
     metric_result = clean_metrics(metric_result_original, multiplier),
-    across(where(is.character), ~ na_if(., "")),
-    minimize =
-      metric_name %in% minimize_metrics |
-      str_detect(metric_name, minimize_pattern)
+    metric_name = str_to_lower(metric_name),
+    across(where(is.character), ~ na_if(., ""))
   ) %>%
   unite(col = "group", task, dataset, metric_name, remove = FALSE)
 
-sota_all %>%
-  count(group, sort = TRUE) %>%
-  write_rds(file_group_counts)
-
+# Filter to include only SOTA results, and change accuracy metrics to error metrics
 v <-
   sota_all %>%
   group_by(group) %>%
-  arrange(paper_date) %>% # sometimes, papers have multiple models. We only want the best one
-  filter(
-    if_else(
-      minimize,
-      metric_result == cummin(metric_result),
-      metric_result == cummax(metric_result)
-    )
+  arrange(paper_date) %>%
+  # Only include the SOTA results
+  filter(cumulative_best_result(metric_result, metric_name)) %>%
+  rowwise() %>%
+  mutate(
+    metric_result =
+      accuracy_to_error(metric_result, metric_name) %>%
+      log_metrics(metric_name)
   ) %>%
-  group_by(group, paper_date) %>% # Only include the minimum/maximum value from a paper
-  filter(
-    if_else(
-      minimize,
-      metric_result == min(metric_result),
-      metric_result  == max(metric_result)
-    )
-  ) %>%
+  ungroup() %>%
+  group_by(group, paper_date) %>%
+  # Only include one (the best) result per paper
+  filter(paper_best_result(metric_result, metric_name)) %>%
   group_by(group, metric_result) %>%
-  slice_min(order_by = paper_date, with_ties = FALSE) %>% # sometimes there are papers with identical metrics
+  # Occasionally there are papers with identical results. Only include one.
+  slice_min(order_by = paper_date, with_ties = FALSE) %>%
   ungroup() %>%
   select(-datasets, -sota, -rows, -multiplier, -metric_result_original) %>%
   arrange(task, dataset, paper_date) %>%
-  rowwise() %>%
-  mutate(
-    result_id =
-      digest::digest(
-        str_glue("{group}{paper_title}{paper_date}{model_name}"),
-        algo = "md5"
-      ),
-    .before = group
-  ) %>%
-  ungroup()
-
-assertthat::assert_that(
-  nrow(v) == n_distinct(v$result_id),
-  msg = "Error: Result IDs are not unique."
-)
-
-v %>%
   write_rds(file_out)
 
 

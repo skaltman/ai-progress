@@ -19,82 +19,33 @@ library(lubridate)
 library(brolgar)
 
 # Parameters
-MIN_OBSERVATIONS <- 5
 file_sota <- here::here("data/sota/sota.rds")
-file_group_counts <- here::here("data/sota/groups.rds")
-file_fixes <- here::here("data/sota/fixes.yml")
-QUANTILE_CUTOFF <- 0.95
+QUANTILE_CUTOFF <- 0.975
 #===============================================================================
-
-fixes <-
-  yaml::read_yaml(file_fixes) %>%
-  enframe(name = "result_id", value = "metric_result") %>% 
-  unnest_wider(col = metric_result) 
-
 sota_all <-
   file_sota %>% 
   read_rds() %>% 
   drop_na(paper_date, metric_result) %>% 
-  # rows_update(fixes, by = "result_id") %>% 
   group_by(group) %>% 
   mutate(
     n_results = n(),
-    metric_result = if_else(minimize, metric_result * -1, metric_result),
     percent_change = 
-      (metric_result - lag(metric_result, order_by = paper_date)) / 
-      abs(lag(metric_result, order_by = paper_date)),
-    log_percent_change = log(percent_change),
+      abs((metric_result - lag(metric_result, order_by = paper_date)) / 
+      lag(metric_result, order_by = paper_date)),
     days_since_first_paper = (min(paper_date) %--% paper_date) / days(1)
   ) %>% 
   ungroup() 
 
 sota <-
   sota_all %>% 
-  filter(percent_change < Inf) %>% 
-  group_by(year(paper_date)) %>% 
-  filter(percent_change < quantile(percent_change, QUANTILE_CUTOFF)) %>% 
+  drop_na(percent_change) %>% 
+  filter(
+    percent_change < Inf,
+    task != "Atari Games"
+  ) %>%
+  group_by(year(paper_date)) %>%
+  filter(percent_change < quantile(percent_change, QUANTILE_CUTOFF)) %>%
   ungroup() 
-```
-
-```{r}
-sota_all %>% 
-  slice_min(percent_change, n = 5)
-```
-
-
-```{r}
-sota %>%  
-  ggplot(aes(percent_change)) +
-  geom_histogram(binwidth = .1) +
-  scale_x_continuous(labels = scales::label_percent())
-
-sota %>% 
-  group_by(year(paper_date)) %>% 
-  summarize(
-    percent_outliers
-  )
-  filter(percent_change >= quantile(.$percent_change, .9)) %>% 
-  ggplot(aes(year(paper_date))) +
-  geom_bar()
-
-sota %>% 
-  filter(!str_detect(str_to_lower(metric_name), "params")) %>% 
-  filter(percent_change > 2) %>% 
-  select(group, paper_title, metric_name, percent_change) %>% 
-  arrange(desc(percent_change))
-```
-
-```{r}
-sota %>% 
-  mutate(year = year(paper_date)) %>% 
-  ggplot(aes(year, percent_change, group = year)) +
-  geom_boxplot() +
-  scale_y_log10()
-```
-
-```{r}
-sota_all %>% 
-  filter(group == "Atari Games_Atari 2600 Phoenix_Score")
 ```
 
 ## Number of SOTA results, by year
@@ -123,9 +74,12 @@ sota %>%
     x = "Year",
     y = "Number of results",
     color = NULL,
-    title = "Number of SOTA results by year"
+    title = "Number of SOTA results by year",
+    caption = "Source: Papers With Code"
   )
 ```
+
+
 
 ```{r message=FALSE}
 v <-
@@ -143,15 +97,13 @@ v <-
     )
   ) 
 
-v %>% 
-  knitr::kable(digits = 2)
+v
 ```
 
 ## Percent change over time
 
 ```{r warning=FALSE}
 sota %>% 
-  drop_na(percent_change) %>%
   ggplot(aes(paper_date, percent_change)) +
   geom_point(alpha = 0.2) +
   geom_smooth(method = "lm", formula = "y~x") +
@@ -162,7 +114,8 @@ sota %>%
   labs(
     x = "Paper publication date",
     y = "Percent change from previous SOTA result\n(log scale)",
-    title = "Percent change of SOTA results over time"
+    title = "Percent change of SOTA results over time",
+    caption = "Source: Papers With Code"
   )
 ```
 
@@ -175,7 +128,8 @@ v <-
   mutate(year = year(paper_date)) %>% 
   group_by(year) %>% 
   summarize(
-    med_percent_change = median(percent_change)
+    med_percent_change = median(percent_change),
+    n = n()
   ) %>%
   arrange(desc(year))
 ```
@@ -196,6 +150,27 @@ v %>%
 ```{r}
 v %>% 
   ggplot(aes(year, med_percent_change)) +
+  geom_point(aes(size = n)) +
+  geom_line() +
+  scale_x_continuous(breaks = scales::breaks_width(1)) +
+  scale_y_continuous(
+    labels = scales::label_percent(accuracy = 1),
+    breaks = scales::breaks_width(0.02),
+    limits = c(0, .16)
+  ) +
+  scale_size_continuous(
+    breaks = c(100, 500, 1000)
+  ) +
+  labs(
+    x = "Year",
+    y = "Median percent change",
+    size = "Number of SOTA\nresults",
+    title = "Median percent change in SOTA results by year",
+    caption = "Source: Papers With Code"
+  )
+
+v %>% 
+  ggplot(aes(year, med_percent_change)) +
   geom_point() +
   geom_line() +
   scale_x_continuous(breaks = scales::breaks_width(1)) +
@@ -207,7 +182,8 @@ v %>%
   labs(
     x = "Year",
     y = "Median percent change",
-    title = "Median percent change in SOTA results by year"
+    title = "Median percent change in SOTA results by year",
+    caption = "Source: Papers With Code"
   )
 ```
 
@@ -216,7 +192,6 @@ v %>%
 ```{r}
 v <-
   sota %>% 
-  drop_na(percent_change) %>% 
   mutate(year = year(paper_date)) %>% 
   filter(year < 2020) %>% 
   group_by(year) %>% 
@@ -247,7 +222,8 @@ v %>%
   labs(
     x = "Year",
     y = "Total percent change",
-    title = "Total percent change by year"
+    title = "Total percent change by year",
+    caption = "Source: Papers With Code"
   )
 ```
 
@@ -309,46 +285,18 @@ slopes %>%
 
 ```{r}
 sota %>% 
-  mutate(year = year(paper_date)) %>% 
-  group_by(year) %>% 
-  slice_max(percent_change) %>% 
-  ungroup() %>% 
-  select(year, percent_change)
-```
+  group_by(year(paper_date)) %>% 
+  summarize(percent_atari = sum(task == "Atari Games") / n())
 
-```{r}
 sota %>% 
-  filter(year(paper_date) == 2018) %>% 
-  slice_max(n = 1, order_by = percent_change)
-``` 
-
-```{r}
-sota_all %>% 
-  filter(str_detect(group, "Video Object Segmentation_YouTube-VOS_Speed"))
+  filter(year(paper_date) == 2015) %>% 
+  filter(task == "Atari Games") %>% 
+  count(paper_title)
 ```
 
-Check: is the number of metrics measured changing over time
 
-Link Prediction_FB15k_MR
-fix link prediction issue ff
-```{r}
-sota_all %>% 
-  filter(group == "Link Prediction_FB15k_MR")
-```
 
-2019
 
-```{r}
-sota_all %>% 
-  filter(str_detect(group, "Density Estimation_MNIST"))
-```
 
-```{r}
-sota_all %>% 
-  ggplot(aes(metric_result)) +
-  geom_histogram() +
-  scale_x_log10()
 
-quantile(sota_all$metric_result, na.rm = TRUE)
-```
 
