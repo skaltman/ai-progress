@@ -19,7 +19,8 @@ library(lubridate)
 # Parameters
 MAX_DATE <- "2019-12-31"
 DATE_BREAKS <- "5 years"
-RESEARCHER_BREAKS <- 2e4 
+RESEARCHER_BREAKS <- 1 * 10^(seq(0, 5))
+RESEARCHER_LIMITS <- c(1, 1e5)
 FACTOR_INCREASE_YEARS_1 <- c(1999, 2019)
 FACTOR_INCREASE_YEARS_2 <- c(2009, 2019)
   # File with authors data
@@ -76,11 +77,12 @@ authors_citations <-
 authors %>% 
   ggplot(aes(date, total_authors)) +
   geom_line() +
+  coord_cartesian(ylim = RESEARCHER_LIMITS) +
   scale_x_date(date_breaks = DATE_BREAKS, date_labels = "%Y") +
-  scale_y_continuous(
-    breaks = scales::breaks_width(RESEARCHER_BREAKS), 
-    labels = scales::label_comma()
-  ) + 
+  scale_y_log10(
+    breaks = RESEARCHER_BREAKS,
+    labels = scales::label_comma(accuracy = 1)
+  ) +
   labs(
     x = "Date",
     y = "Total researchers",
@@ -158,10 +160,11 @@ authors_subfields %>%
   ) %>% 
   ggplot(aes(date, total_authors, color = subfield_name)) + 
   geom_line() +
+  coord_cartesian(ylim = RESEARCHER_LIMITS) +
   scale_x_date(date_breaks = DATE_BREAKS, date_labels = "%Y") +
-  scale_y_continuous(
-    breaks = scales::breaks_width(10000), 
-    labels = scales::label_comma()
+  scale_y_log10(
+    breaks = RESEARCHER_BREAKS,
+    labels = scales::label_comma(accuracy = 1)
   ) +
   theme(
     legend.text = element_text(size = 5)
@@ -204,18 +207,23 @@ v <-
   bind_rows(
     authors %>% mutate(citation_group = "All authors")
   ) %>% 
+  filter(year(date) >= 1990) %>% 
   mutate(
     citation_group = factor(citation_group, levels = citation_levels)
   )
 
 v %>% 
-  filter(year(date) >= 1990) %>% 
   ggplot(aes(date, total_authors, color = citation_group)) +
   geom_line() +
-    scale_x_date(date_breaks = DATE_BREAKS, date_labels = "%Y") +
-  scale_y_continuous(
-    breaks = scales::breaks_width(10000), 
-    labels = scales::label_comma()
+  coord_cartesian(ylim = RESEARCHER_LIMITS) + 
+  scale_x_date(
+    breaks = 
+      seq(ymd("1990-01-01"), ymd("2020-01-01"), "5 years"), 
+    date_labels = "%Y"
+  ) +
+  scale_y_log10(
+    breaks = RESEARCHER_BREAKS,
+    labels = scales::label_comma(accuracy = 1)
   ) +
   theme(
     legend.text = element_text(size = 6)
@@ -224,12 +232,39 @@ v %>%
     x = "Date",
     y = "Total researchers",
     color = NULL,
-    title = "Total researchers over time, with citation thresholds",
-    subtitle = "Starting on 2020-01-01",
+    title = "Total researchers over time",
+    subtitle = "By maximum number of citations on a paper",
     caption = "Source: arXiv and Microsoft"
   )
 ```
 
+```{r}
+v <-
+  v %>% 
+  filter(citation_group == "At least 1000 citations")
+
+v %>% 
+  filter(year(date) > 2010) %>% 
+  ggplot(aes(date, total_authors)) +
+  geom_line() +
+  coord_cartesian(ylim = c(1, 300)) +
+  scale_x_date(
+    breaks = 
+      seq(ymd("1990-01-01"), ymd("2020-01-01"), "5 years"), 
+    date_labels = "%Y"
+  ) +
+  scale_y_log10(breaks = scales::breaks_log(n = 8)) +
+  theme(
+    legend.text = element_text(size = 6)
+  ) +
+  labs(
+    x = "Date",
+    y = "Total researchers",
+    color = NULL,
+    title = "Researchers with at least 1000 citations over time",
+    caption = "Source: arXiv and Microsoft"
+  )
+```
 
 
 
