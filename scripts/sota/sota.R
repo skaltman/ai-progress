@@ -6,6 +6,7 @@
 
 # Libraries
 library(tidyverse)
+library(lubridate)
 
 # Parameters
   # URL for original data
@@ -18,6 +19,8 @@ file_group_counts <- here::here("data/sota/groups.rds")
 file_metric_patterns <- here::here("data/sota/metric_patterns.yml")
   # Directory to download original data
 dir_data <- here::here("data/sota")
+  # Quantile cutoff for outliers
+QUANTILE_CUTOFF <- 0.975
 #===============================================================================
 
 dest <- fs::path(dir_data, "evaluation_tables.json")
@@ -155,9 +158,28 @@ v <-
   slice_min(order_by = paper_date, with_ties = FALSE) %>%
   ungroup() %>%
   select(-datasets, -sota, -rows, -multiplier, -metric_result_original) %>%
-  arrange(task, dataset, paper_date) %>%
+  arrange(task, dataset, paper_date)
+
+sota_all <-
+  v %>%
+  drop_na(paper_date, metric_result) %>%
+  group_by(group) %>%
+  mutate(
+    n_results = n(),
+    percent_change =
+      abs((metric_result - lag(metric_result, order_by = paper_date)) /
+            lag(metric_result, order_by = paper_date)),
+    days_since_first_paper = (min(paper_date) %--% paper_date) / days(1)
+  ) %>%
+  ungroup()
+
+sota_all %>%
+  drop_na(percent_change) %>%
+  filter(
+    percent_change < Inf,
+    task != "Atari Games"
+  ) %>%
+  group_by(year(paper_date)) %>%
+  filter(percent_change < quantile(percent_change, QUANTILE_CUTOFF)) %>%
+  ungroup() %>%
   write_rds(file_out)
-
-
-
-

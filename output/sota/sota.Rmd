@@ -20,32 +20,36 @@ library(brolgar)
 
 # Parameters
 file_sota <- here::here("data/sota/sota.rds")
-QUANTILE_CUTOFF <- 0.975
+# QUANTILE_CUTOFF <- 0.975
 #===============================================================================
-sota_all <-
-  file_sota %>% 
-  read_rds() %>% 
-  drop_na(paper_date, metric_result) %>% 
-  group_by(group) %>% 
-  mutate(
-    n_results = n(),
-    percent_change = 
-      abs((metric_result - lag(metric_result, order_by = paper_date)) / 
-      lag(metric_result, order_by = paper_date)),
-    days_since_first_paper = (min(paper_date) %--% paper_date) / days(1)
-  ) %>% 
-  ungroup() 
+# sota_all <-
+#   file_sota %>% 
+#   read_rds() %>% 
+#   drop_na(paper_date, metric_result) %>% 
+#   group_by(group) %>% 
+#   mutate(
+#     n_results = n(),
+#     percent_change = 
+#       abs((metric_result - lag(metric_result, order_by = paper_date)) / 
+#       lag(metric_result, order_by = paper_date)),
+#     days_since_first_paper = (min(paper_date) %--% paper_date) / days(1)
+#   ) %>% 
+#   ungroup() 
+# 
+# sota <-
+#   sota_all %>% 
+#   drop_na(percent_change) %>% 
+#   filter(
+#     percent_change < Inf,
+#     task != "Atari Games"
+#   ) %>%
+#   group_by(year(paper_date)) %>%
+#   filter(percent_change < quantile(percent_change, QUANTILE_CUTOFF)) %>%
+#   ungroup() 
 
-sota <-
-  sota_all %>% 
-  drop_na(percent_change) %>% 
-  filter(
-    percent_change < Inf,
-    task != "Atari Games"
-  ) %>%
-  group_by(year(paper_date)) %>%
-  filter(percent_change < quantile(percent_change, QUANTILE_CUTOFF)) %>%
-  ungroup() 
+sota <- 
+  file_sota %>% 
+  read_rds()
 ```
 
 ## Number of SOTA results, by year
