@@ -24,7 +24,8 @@ RESEARCHER_LIMITS <- c(1, 1e5)
 FACTOR_INCREASE_YEARS_1 <- c(1999, 2019)
 FACTOR_INCREASE_YEARS_2 <- c(2009, 2019)
   # File with authors data
-file_authors <- here::here("data/microsoft/ms_authors.rds")
+file_authors <-       
+  here::here("data/microsoft/ms_authors.rds")
   # File with authors by subfield
 file_authors_subfields <- 
   here::here("data/microsoft/ms_authors_subfields.rds")

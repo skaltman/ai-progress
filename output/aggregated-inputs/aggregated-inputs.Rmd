@@ -1,0 +1,87 @@
+---
+title: Aggregated inputs
+author: Sara Altman
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+library(lubridate)
+
+# Parameters
+MAX_DATE <- "2019-12-31"
+file_compute <-  
+  here::here("data-raw/compute.csv")
+file_funding <-
+  here::here("data-raw/funding.csv")
+file_sota <- 
+  here::here("data/sota/sota.rds")
+file_imagenet <- here::here("data-raw/imagenet.csv")
+file_penn_treebank <-  
+  here::here("data-raw/penn_treebank.csv")
+file_authors <-       
+  here::here("data/microsoft/ms_authors.rds")
+#===============================================================================
+
+imagenet <- 
+  read_csv(file_imagenet) %>% 
+  transmute(year = as.integer(year), compute)
+
+penn_treebank <-
+  read_csv(file_penn_treebank) %>% 
+  select(year, compute = `compute (pfs)`)
+
+funding <- 
+  read_csv(file_datasphere) %>% 
+  drop_na(funding) %>% 
+  select(year, funding)
+  
+  
+compute <- 
+  read_csv(file_compute) %>% 
+  group_by(year = year(publication_date)) %>% 
+  summarize(median_pfd = median(overall_peta_flop_days))
+
+sota <- 
+  read_rds(file_sota) %>% 
+  mutate(year = year(paper_date)) %>% 
+  filter(year < 2020) %>% 
+  group_by(year) %>% 
+  summarize(total_percent_change = sum(percent_change)) 
+
+researchers <-
+  file_authors %>% 
+  read_rds() %>% 
+  filter(date < MAX_DATE) %>% 
+  group_by(year = year(date)) %>% 
+  summarize(total_authors = max(total_authors))
+```
+
+## Aggregated inputs vs. outputs
+
+TODO: 
+## Make it by year
+## I think it makes sense to plot factor increase on x and output on y
+## How to summarize petaflops for compute data? currently I think it might be wrong
+
+
+```{r}
+sota
+```
+
+```{r}
+researchers %>% 
+  left_join(funding, by = "year") %>% 
+  left_join(compute, by = "year") 
+# add the other data sources
+# decide how to handle time
+```
+

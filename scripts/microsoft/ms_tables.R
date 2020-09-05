@@ -1,4 +1,4 @@
-#
+# Microsoft tables
 
 # Author: Sara Altman
 # Version: 2020-04-08
@@ -7,10 +7,6 @@
 library(tidyverse)
 library(googlesheets4)
 library(lubridate)
-
-# question: should each researcher enter only once? right now they can enter once per subfield
-# it's if they've published a single paper with more than 10 citations
-# got to fix the tables
 
 # Parameters
 file_authors <- here::here("data/microsoft/ms_authors_new.rds")

@@ -6,14 +6,10 @@
 # Libraries
 library(tidyverse)
 library(microdemic)
-library(googlesheets4)
 
 # Parameters
-# MIN <- 90001
-# MAX <- 106091
-file_papers <- here::here("data/arxiv/papers.rds")
-# file_out <- here::here(str_glue("data/microsoft/ms_citations_{MAX}.rds"))
-file_out <- here::here("data/microsoft/ms_citations.rds")
+file_papers <- here::here("data/arxiv/arxiv_papers.rds")
+file_out <- here::here(str_glue("data/microsoft/ms_papers.rds"))
 response_vars <-
   c(
     paper_id = "Id",
@@ -25,33 +21,25 @@ response_vars <-
     citation_count = "CC"
   )
 query <- "Ti=='{title_query}'"
-sheet_key <- "1NB22PAhoFVAYxzNEROrBchbtmDm15ZG6jLeayb-gsyE"
-ws <- "Citations"
 
-# col_order <-
-#   c(
-#     "id",
-#     "title",
-#     "authors",
-#     "date_submitted" = "submitted",
-#     "date_updated" = "updated",
-#     "primary_category",
-#     "categories",
-#     "reference" = "journal_ref",
-#     "doi",
-#     "query_id",
-#     "citations"
-#   )
 #===============================================================================
 
 clean_title <- function(title) {
   title %>%
     str_to_lower() %>%
-    str_remove_all("'") %>%
-    str_remove_all("\n") %>%
-    str_replace_all("[,?()\\+\"!]", "") %>%
-    str_replace_all("[-:/]", " ") %>%
-    str_replace_all("\\s{2,}", " ")
+    str_replace_all(
+      c(
+        "à" = "a",
+        "á" = "a",
+        "è" = "e",
+        "é" = "e",
+        "ê" = "e",
+        "ô" = "o"
+      )
+    ) %>%
+    str_replace_all("[[[:punct:]]\n]", " ") %>%
+    str_replace_all("\\s{2,}", " ") %>%
+    str_trim(side = "both")
 }
 
 empty_response <- function(id, title) {
@@ -116,19 +104,12 @@ possibly_get_microsoft <- possibly(get_microsoft, otherwise = tibble())
 papers <-
   read_rds(file_papers)
 
-ms_citations <-
+v <-
   papers %>%
   mutate(n = row_number()) %>%
   select(id, title, n) %>%
-  slice(MIN:MAX) %>%
-  pmap_dfr(possibly_get_microsoft)
-
-ms_citations %>%
+  pmap_dfr(possibly_get_microsoft) %>%
   mutate(date = lubridate::ymd(date)) %>%
   write_rds(file_out, compress = "gz")
-
-ms_citations %>%
-  select(-authors) %>%
-  googlesheets4::sheets_append(ss = sheet_key, sheet = ws)
 
 

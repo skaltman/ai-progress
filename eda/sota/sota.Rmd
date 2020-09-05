@@ -1,5 +1,5 @@
 ---
-title: SOTA
+title: Papers with Code - SOTA
 author: Sara Altman 
 date: "`r Sys.Date()`"
 output: 
@@ -17,208 +17,159 @@ library(tidyverse)
 library(lubridate)
 
 # Parameters
+MIN_OBSERVATIONS <- 5
 file_sota <- here::here("data/sota/sota.rds")
-file_sota_unfiltered <- here::here("data/sota/sota_unfiltered.rds")
+file_group_counts <- here::here("data/sota/groups.rds")
 #===============================================================================
 
-sota <- 
+groups <-
+  file_group_counts %>% 
+  read_rds() %>% 
+  filter(n >= MIN_OBSERVATIONS)
+
+sota <-
   file_sota %>% 
-  read_rds()
-
-sota_unfiltered <-
-  file_sota_unfiltered %>% 
-  read_rds()
-```
-
-## Missing data and repeated benchmarks
-
-The original data had `r nrow(sota_unfiltered)` measurements. However, many rows are missing critical data, including the paper data, metric name, or metric value.
-
-```{r}
-sota_unfiltered %>% 
-  summarize_at(
-    vars(paper_date, metric_name, metric_result), 
-    list(missing = ~ sum(is.na(.)), percent = ~ sum(is.na(.)) / n() * 100)
-  ) %>% 
-  pivot_longer(
-    cols = everything(), 
-    names_to = c("variable", "measure"),
-    names_pattern = "(.*)_(\\w+$)",
-    values_to = "value"
-  ) %>% 
-  pivot_wider(names_from = measure, values_from = value) %>% 
-  rename(num_missing = missing, percent_missing = percent) %>% 
-  arrange(desc(percent_missing))
-```
-
-There are `r sota_unfiltered %>% filter_at(vars(paper_date, metric_result, metric_name), any_vars(is.na(.))) %>% nrow()` rows where at least one of these variables is mising.
-
-I removed these rows, since we can't use them. There also should only be one benchmark measurement per task/metric combination per day. However, sometimes a paper is entered in the data multiple times, with one entry per model put forward in the paper. We only want to keep the model that performed the best.
-
-For example, there are 10 measurement of Average Treatment Effect Error on a causal inference task on one day.
-
-```{r}
-sota_unfiltered %>%
-  filter_at(
-    vars(paper_date, metric_result, metric_name), 
-    all_vars(!is.na(.))
-  ) %>% 
-  count(paper_date, task, metric_name, sort = TRUE) 
-```
-
-```{r}
-sota_unfiltered %>% 
-  filter(
-    paper_date == ymd("2016-06-13"), 
-    task == "Causal Inference",
-    metric_name == "Average Treatment Effect Error"
-  ) %>% 
-  select(paper_date, paper_title, model_name)
-```
-
-These measurements are from different models from the same paper. It might also be important to note that `paper_id` is _not_ a unique identifier. For example, this paper has 10 different values of `paper_id`, one for each model. 
-
-In the final data, for each task-metric-day combination, I included only the data from the best-performing model. This eliminates around 20% of the data, leaving us with `r nrow(sota)` data points.
-
-## Measurements by category
-
-```{r}
-observations <-
-  sota %>% 
-  drop_na(metric_name, metric_result) %>% 
-  count(benchmark_id, metric_name, sort = TRUE)
-
-observations %>% 
-  ggplot(aes(n)) +
-  geom_histogram(binwidth = 1) +
-  labs(
-    title = 
-      "Distribution of the number of times a metric is measured for a task",
-    subtitle = "Many metrics are measured only once"
-  )
-```
-
-```{r}
-percent_only_one <-
-  observations %>% 
-  count(one = n == 1, sort = TRUE) %>% 
-  summarize(percent = n[one] / sum(n) * 100) %>% 
-  pull(percent) %>% 
-  format(digits = 5)
-```
-
-`r percent_only_one`% of metrics are measured only once, which means we can't understand their trend over time. 
-
-```{r}
-observations_by_category <-
-  sota %>% 
-  drop_na(metric_result, metric_name) %>% 
-  unnest(cols = categories) %>% 
-  group_by(categories) %>% 
-  count(benchmark_id, metric_name, name = "num_observations") %>% 
-  count(num_observations, sort = TRUE, name = "n") %>% 
-  ungroup()
-
-
-observations_by_category %>% 
-  group_by(categories) %>% 
-  summarize(
-    prop_one = n[num_observations == 1] / sum(n),
-    n_metrics = sum(n)
-  ) %>% 
-  mutate(categories = fct_reorder(categories, prop_one, .desc = TRUE)) %>% 
-  ggplot(aes(prop_one, categories, size = n_metrics)) +
-  geom_point() +
-  scale_x_continuous(breaks = scales::breaks_width(0.1)) +
-  labs(
-    x = "Proportion of metrics with only a single observation",
-    title = "Proportion of single observation metrics by category",
-    subtitle = "Many metrics are only measured once",
-    size = "Number of\ndistinct metrics"
-  )
-```
-
-Three categories--Knowledge Base, Audio, and Adversarial--only include metrics with a single observation.
-
-## Distinct tasks by category
-
-```{r}
-sota %>% 
-  unnest(cols = categories) %>% 
-  distinct(categories, task) %>% 
-  count(categories) %>% 
-  mutate(categories = fct_reorder(categories, n)) %>%
-  ggplot(aes(n, categories)) +
-  geom_point() +
-  scale_x_continuous(breaks = scales::breaks_width(width = 10)) +
-  labs(
-    title = "Number of distinct tasks by category, ",
-    subtitle = "Computer vision and NLP have the most tasks"
-  )
-```
-
-
-## Percent change
-
-There should be no negative percent change.
-
-```{r}
-sota %>% 
-  count(percent_change < 0, sort = TRUE) %>% 
-  mutate(prop = n / sum(n))
-```
-
-11% are (currently) negative.
-
-```{r}
-sota %>% 
-  unnest(cols = categories) %>% 
-  filter(percent_change < 0) %>% 
-  count(categories, sort = TRUE) 
-```
-
-Most are in Computer Vision (which also has the most data).
-
-```{r}
-sota %>% 
-  filter(percent_change > 0) %>% 
-  unnest(cols = categories) %>% 
-  filter(categories != "Playing Games") %>% 
+  read_rds() %>% 
+  drop_na(paper_date, metric_result) %>% 
+  group_by(group) %>% 
   mutate(
-    categories = 
-      fct_reorder(categories, percent_change, .desc = TRUE)
+    n_results = n(),
+    metric_result = if_else(minimize, metric_result * -1, metric_result),
+    percent_change_lag = 
+      (metric_result - lag(metric_result, order_by = paper_date)) / 
+      abs(lag(metric_result, order_by = paper_date)),
+    days_since_first_paper = (min(paper_date) %--% paper_date) / days(1)
   ) %>% 
-  ggplot(aes(categories, percent_change)) +
-  geom_hline(yintercept = 0, size = 1.5, color = "white") +
-  geom_boxplot() +
-  scale_y_log10() +
-  theme(axis.text.x = element_text(angle = 45))
+  ungroup() 
+
+# %>% 
+  # filter(percent_change_lag > 0)
+
+# %>% 
+  # filter(group %in% groups$group)
+
+# When were most of the first papers?
+```
+
+## Percent change over time
+
+### Days since first paper
+
+```{r message=FALSE, warning=FALSE}
+sota %>%  
+  ggplot(aes(days_since_first_paper, percent_change_lag)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm") +
+  scale_y_log10(labels = scales::label_percent(accuracy = 1)) 
 ```
 
 ```{r}
-computer_vision <-
-  sota %>% 
-  unnest(categories) %>%  
-  filter(categories == "Computer Vision") %>% 
-  group_by(task) %>% 
-  filter(
-    n() > 1,
-    all(percent_change > 0)
-  ) %>% 
-  ungroup()
+sota %>%  
+  unnest(categories) %>% 
+  ggplot(aes(paper_date, percent_change_lag, color = categories)) +
+  geom_smooth(method = "lm", se = FALSE) +
+  scale_y_log10(labels = scales::label_percent(accuracy = 1)) 
+```
 
+
+### Date
+
+```{r message=FALSE, warning=FALSE}
 sota %>% 
   unnest(categories) %>% 
-  filter(categories == "Natural Language Processing")
+  filter(percent_change > 0) %>% 
+  ggplot(aes(paper_date, percent_change_lag)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method = "lm") 
+  scale_y_log10(labels = scales::label_percent(accuracy = 1)) 
+```
 
-computer_vision %>% 
-  count(task, sort = TRUE)
+
+```{r}
+sota %>% 
+  group_by(year = year(paper_date)) %>%
+  summarize(
+    n_10 = sum(percent_change_lag > 0.1, na.rm = TRUE),
+    n_20 = sum(percent_change_lag > 0.2, na.rm = TRUE),
+    n_30 = sum(percent_change_lag > 0.3, na.rm = TRUE),
+    n_50 = sum(percent_change_lag > 0.5, na.rm = TRUE),
+    n_100 = sum(percent_change_lag > 1, na.rm = TRUE),
+    across(c(n_10, n_20, n_30, n_50, n_100), list(percent = ~ (. / n()) * 100))
+  )
 ```
 
 ```{r}
-computer_vision %>% 
-  unite(col = "group_", metric_name, task, remove = FALSE) %>% 
-  ggplot(aes(days_written_after_first_in_benchmark, percent_change, group = group_)) +
-  geom_line(alpha = 0.5) 
+sota %>%  
+  filter(percent_change_lag >= .1) %>%
+  count(year = year(paper_date)) %>%
+  ggplot(aes(year, n)) +
+  geom_point() +
+  geom_line()
+
+sota %>% 
+  filter(percent_change_lag > 0) %>%
+  count(year = year(paper_date), wt = percent_change_lag) %>%
+  ggplot(aes(year, n)) +
+  geom_point() +
+  geom_line()
+
+# counts of the papers 1 + 1 + 1
+# for each year: 1 * percent_change + percent_per
+
 ```
+
+
+### Categories
+
+```{r}
+sota %>% 
+  unnest(categories) %>% 
+  filter(percent_change > 0) %>% 
+  ggplot(aes(days_since_first_paper, percent_change_lag, group = group)) +
+  geom_line(alpha = 0.5) +
+  facet_wrap(vars(categories)) +
+  scale_y_log10() 
+```
+
+### Datasets
+
+```{r fig.asp=1}
+sota %>%  
+  filter(percent_change > 0) %>% 
+  ggplot(aes(days_since_first_paper, percent_change_lag, group = group)) +
+  geom_line() +
+  facet_wrap(vars(dataset)) +
+  scale_y_log10()
+```
+
+## CIFAR-100
+
+```{r}
+sota %>% 
+  filter(dataset == "CIFAR-100") %>% 
+  filter(metric_name == "Percentage correct") %>% 
+  ggplot(aes(paper_date, metric_result)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+```{r}
+sota %>% 
+  # filter(dataset == "ImageNet") %>% 
+  #filter(task == "Image Classification") %>% 
+  filter(dataset %in% c("CIFAR-100")) %>% 
+  filter(metric_name == "Percentage correct") %>% 
+  drop_na(percent_change_lag) %>% 
+  ggplot(aes(paper_date, percent_change_lag, group = group)) +
+  geom_point() +
+  geom_line() 
+```
+
+## Ideas
+
+* Sum?
+* Percent change of current from first
+  * To collapse, maybe weight by number of observations?
+* Median of each line, look at how individual values deviate 
+
 
