@@ -1,0 +1,21 @@
+publication_date,overall_peta_flop_days,result
+2012-06-01,0.005787540000000001,AlexNet
+2012-07-03,0.0021312,Dropout
+2013-10-01,4.5e-4,Word2vec
+2013-11-12,0.00615384,Visualizing and Understanding Conv Nets
+2013-12-01,5.5e-6,VAE
+2013-12-19,2.7e-5,DQN
+2014-06-01,0.006,GANs
+2014-09-10,0.09324,Seq2Seq
+2014-09-17,0.018,GoogleNet
+2014-09-04,0.098,VGG
+2014-12-01,7e-4,Adam Optimizer
+2015-12-08,0.24,DeepSpeech2
+2015-12-10,0.12053333333333335,ResNets
+2016-11-05,31.99996800000001,Neural Architecture Search
+2016-09-25,79.42774259317446,Neural Machine Translation
+2016-10-07,5.214779999999999,Xception
+2017-06-01,0.089,Attention is all you need
+2017-08-11,6.974926,TI7 Dota 1v1
+2017-10-19,1862,AlphaGoZero
+2017-12-05,420,AlphaZero
