@@ -66,9 +66,10 @@ compute %>%
 
 ```{r}
 compute_sota %>% 
-  bind_rows(penn_treebank) %>% 
-  bind_rows(imagenet) %>% 
-  ggplot(aes(date, compute)) +
+  mutate(group = "OpenAI") %>% 
+  bind_rows(penn_treebank %>% mutate(group = "Penn Treebank")) %>% 
+  bind_rows(imagenet %>% mutate(group = "ImageNet")) %>% 
+  ggplot(aes(date, compute, color = group)) +
   geom_point() +
   geom_smooth(
     size = 0.5,
@@ -85,7 +86,8 @@ compute_sota %>%
     x = "Date",
     y = "Overall PetaFlop Days",
     title = "Compute used to power SOTA models",
-    subtitle = "An exponential increase over the past decade"
+    subtitle = "An exponential increase over the past decade",
+    color = NULL
   )
 ```
 
