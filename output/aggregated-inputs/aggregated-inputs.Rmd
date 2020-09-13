@@ -67,9 +67,9 @@ compute <-
 sota <- 
   read_rds(file_sota) %>% 
   mutate(year = year(paper_date)) %>% 
-  filter(year < 2020) %>% 
+  # filter(year < 2020) %>% 
   group_by(year) %>% 
-  summarize(output_percent_change = sum(percent_change)) 
+  summarize(total_percent_change = sum(percent_change)) 
 
 researchers <-
   file_authors %>% 
@@ -113,6 +113,12 @@ all <-
 
 
 ### Option 1
+
+```{r}
+v %>% 
+  filter(variable == "output_percent_change")
+```
+
 
 ```{r}
 v <-
