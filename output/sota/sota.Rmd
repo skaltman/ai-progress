@@ -285,18 +285,7 @@ slopes %>%
   mutate(pct = n / sum(n)) 
 ```
 
-## Investigation
 
-```{r}
-sota %>% 
-  group_by(year(paper_date)) %>% 
-  summarize(percent_atari = sum(task == "Atari Games") / n())
-
-sota %>% 
-  filter(year(paper_date) == 2015) %>% 
-  filter(task == "Atari Games") %>% 
-  count(paper_title)
-```
 
 
 

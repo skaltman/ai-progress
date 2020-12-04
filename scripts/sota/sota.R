@@ -2,13 +2,15 @@
 # Source: https://paperswithcode.com/about
 
 # Author: Sara Altman
-# Version: 2020-05-01
+# Version: 2020-09-13
 
 # Libraries
 library(tidyverse)
 library(lubridate)
 
 # Parameters
+  # Re-download data from Papers With Code?
+REDOWNLOAD <- FALSE
   # URL for original data
 url_data <- "https://paperswithcode.com/media/about/evaluation-tables.json.gz"
   # Output file
@@ -24,7 +26,10 @@ QUANTILE_CUTOFF <- 0.975
 #===============================================================================
 
 dest <- fs::path(dir_data, "evaluation_tables.json")
-download.file(url_data, destfile = dest)
+
+if (REDOWNLOAD) {
+  download.file(url_data, destfile = dest)
+}
 
 original_json <-
   dest %>%
@@ -173,13 +178,16 @@ sota_all <-
   ) %>%
   ungroup()
 
-sota_all %>%
+v <-
+  sota_all %>%
   drop_na(percent_change) %>%
   filter(
     percent_change < Inf,
     task != "Atari Games"
   ) %>%
   group_by(year(paper_date)) %>%
-  filter(percent_change < quantile(percent_change, QUANTILE_CUTOFF)) %>%
+  filter(
+    percent_change < quantile(percent_change, QUANTILE_CUTOFF)
+  ) %>%
   ungroup() %>%
   write_rds(file_out)

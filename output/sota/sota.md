@@ -1,7 +1,7 @@
 Papers with Code - SOTA
 ================
 Sara Altman
-2020-09-13
+2020-12-04
 
   - [Number of SOTA results, by year](#number-of-sota-results-by-year)
   - [Percent change over time](#percent-change-over-time)
@@ -12,7 +12,6 @@ Sara Altman
       - [Table](#table-1)
       - [Plot](#plot-1)
   - [Models](#models)
-  - [Investigation](#investigation)
 
 ## Number of SOTA results, by year
 
@@ -97,22 +96,3 @@ Sara Altman
     ##   <lgl>    <int> <dbl>
     ## 1 FALSE      436 0.557
     ## 2 TRUE       347 0.443
-
-## Investigation
-
-    ## `summarise()` ungrouping output (override with `.groups` argument)
-
-    ## # A tibble: 8 x 2
-    ##   `year(paper_date)` percent_atari
-    ##                <dbl>         <dbl>
-    ## 1               2013             0
-    ## 2               2014             0
-    ## 3               2015             0
-    ## 4               2016             0
-    ## 5               2017             0
-    ## 6               2018             0
-    ## 7               2019             0
-    ## 8               2020             0
-
-    ## # A tibble: 0 x 2
-    ## # … with 2 variables: paper_title <chr>, n <int>
