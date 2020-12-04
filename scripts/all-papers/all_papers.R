@@ -12,7 +12,7 @@ library(aRxiv)
 # Parameters
 file_papers_ms <- here::here("data/microsoft/ms_papers.rds")
 START_YEAR_ARXIV <- 1991
-file_out <- here::here("data/all/papers.rds")
+file_out <- here::here("data/all-papers/papers.rds")
 #===============================================================================
 
 ai_papers <-

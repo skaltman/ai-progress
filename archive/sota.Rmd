@@ -1,0 +1,108 @@
+---
+title: SOTA data quality
+author: Sara Altman
+date: "`r Sys.Date()`"
+output: 
+  github_document:
+    toc: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+# Libraries
+library(tidyverse)
+
+# Parameters
+file_original <- here::here("data/sota/evaluation-tables.json")
+sheet_id <- "1zUJ9PhhdUoFSxZMXbYp9EDSTqRKssIysRsofs9FrBA4"
+#===============================================================================
+
+cleaned <-
+  sheet_id %>% 
+  googlesheets4::sheets_read() %>% 
+  mutate_at(vars(metric_name, metric_result), ~ map(., as.character)) %>% 
+  unnest(
+    cols = c(metric_name, metric_result),
+    keep_empty = TRUE
+  )
+
+cleaned
+```
+
+## Original
+
+```{r}
+original %>% 
+  mutate_all(is.na) %>% 
+  count(!!!.)
+```
+
+
+## Tasks
+
+```{r}
+all(original$task %in% cleaned$task)
+```
+
+Not all tasks in the original data are in the cleaned data.
+
+```{r}
+length(setdiff(original$task, cleaned$task))
+```
+
+```{r}
+non_empty_tasks <-
+  original %>% 
+  filter(map_lgl(datasets, ~ !is.null(.))) %>% 
+  pull(task)
+
+all(non_empty_tasks %in% cleaned$task)
+```
+
+```{r}
+length(setdiff(non_empty_tasks, cleaned$task))
+```
+
+```{r}
+setdiff(non_empty_tasks, cleaned$task)
+```
+
+```{r}
+original %>% 
+  filter(task == "Super-Resolution") %>% 
+  unnest(datasets) %>% 
+  mutate(
+    dataset = map_chr(datasets, "dataset"),
+    sota = map(datasets, "sota")
+  ) %>% 
+  select(-datasets)
+
+names(x$datasets[[1]])
+```
+
+
+## Missing data in the cleaned version
+
+The critical variables are: `paper_date`, `metric_name`, `metric_result`.
+
+```{r}
+cleaned %>% 
+  select(task, paper_date, paper_title, metric_name, metric_result) %>% 
+  mutate_all(is.na) %>% 
+  count(!!!., sort = TRUE)
+```
+
+There are 30 papers with no paper date (or title), but which do have metric information.
+
+```{r}
+cleaned %>% 
+  filter(!is.na(metric_name), is.na(paper_date))
+```
+
+
+
+
+
