@@ -14,6 +14,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r message=FALSE, warning=FALSE}
 # Libraries
 library(tidyverse)
+library(lubridate)
 
 # Parameters
 START_YEAR_ARXIV <- 1991
@@ -40,6 +41,7 @@ researchers <-
 ```
 
 ## Percent of all papers published to arXiv
+
 ```{r}
 v <-
   papers %>%
@@ -63,6 +65,8 @@ v %>%
     title = "Percent of all papers submitted to arXiv, by year"
   )
 ```
+
+# Factor increase - proportion of researchers on arXiv and new researchers
 
 ```{r}
 v %>% 
@@ -89,63 +93,14 @@ v %>%
   pivot_wider(names_from = variable, values_from = value) %>% 
   rename(
     Period = period,
-    `New researchers factor increase` = new_researchers,
-    `Total researchers factor increase` = total_researchers
+    `Proportion of researchers on arxiv factor increase` = arxiv_to_all,
+    `Total researchers factor increase` = total_authors
   ) %>% 
   knitr::kable(digits = 3)
 ```
 
-```{r}
-v %>% 
-  left_join(researchers, by = "year") %>% 
-  ggplot(aes(arxiv_to_all, total_authors)) +
-  geom_point() +
-  geom_line()
-```
 
-```{r}
-papers %>% 
-  mutate(
-    year = as.integer(year),
-    across(-year, ~ (. - lag(.)) / lag(.))
-  ) %>% 
-  pivot_longer(
-    cols = -year, names_to = "type", values_to = "percent_increase"
-  ) %>% 
-  filter(year >= 2009, year < 2020) %>% 
-  mutate(type = fct_reorder2(type, year, percent_increase)) %>% 
-  ggplot(aes(year, percent_increase, color = type)) +
-  geom_line() +
-  scale_x_continuous(breaks = scales::breaks_width(1)) +
-  scale_y_continuous(labels = scales::label_percent())
-```
 
-```{r}
-papers %>% 
-  filter(year < 2020) %>% 
-  ggplot(aes(arxiv, ai)) +
-  geom_line() +
-  labs(
-    x = "Total number of papers on arXiv",
-    y = "AI papers on arXiv"
-  )
-```
 
-```{r}
 
-```
-
-```{r}
-v <-
-  papers %>% 
-  filter(year < 2020)
-
-fit <- lm(ai ~ poly(arxiv, degree = 3), data = v)
-
-v %>% 
-  modelr::add_residuals(fit) %>% 
-  ggplot(aes(arxiv, resid)) +
-  geom_line() +
-  geom_line(aes(y = resid), color = "blue")
-```
 
