@@ -1,17 +1,12 @@
----
-title: Aggregated inputs
-author: Sara Altman
-date: "`r Sys.Date()`"
-output: 
-  github_document:
-    toc: true
----
+Aggregated inputs
+================
+Sara Altman
+2020-12-04
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
+  - [Outputs and inputs](#outputs-and-inputs)
+  - [Models (not used)](#models-not-used)
 
-```{r message=FALSE, warning=FALSE}
+``` r
 # Libraries
 library(tidyverse)
 library(lubridate)
@@ -127,7 +122,7 @@ df <-
 
 ## Outputs and inputs
 
-```{r}
+``` r
 # Output data
 outputs <-
   df %>% 
@@ -155,9 +150,13 @@ outputs %>%
   )
 ```
 
+    ## `geom_smooth()` using method = 'loess' and formula 'y ~ x'
+
+![](aggregated-inputs_files/figure-gfm/unnamed-chunk-2-1.png)<!-- -->
+
 ## Models (not used)
 
-```{r}
+``` r
 # Model spec
 lm_spec <-
   linear_reg() %>% 
@@ -174,4 +173,3 @@ input_fit <-
     data = inputs 
   )
 ```
-
