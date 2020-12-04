@@ -17,12 +17,14 @@ library(tidyverse)
 library(lubridate)
 
 # Parameters
+  # Last date to include 
 MAX_DATE <- "2019-12-31"
+  # Breaks for date axes on plots
 DATE_BREAKS <- "5 years"
+  # Breaks for researcher number axes on plots
 RESEARCHER_BREAKS <- 1 * 10^(seq(0, 5))
+  # Plot limits for researcher axes
 RESEARCHER_LIMITS <- c(1, 1e5)
-FACTOR_INCREASE_YEARS_1 <- c(1999, 2019)
-FACTOR_INCREASE_YEARS_2 <- c(2009, 2019)
   # File with authors data
 file_authors <-       
   here::here("data/microsoft/ms_authors.rds")
@@ -49,7 +51,7 @@ citation_levels <-
 authors <-
   file_authors %>% 
   read_rds() %>% 
-  filter(date < MAX_DATE)
+  filter(date <= MAX_DATE)
 
 subfields <-
   file_subfields %>% 
@@ -60,14 +62,14 @@ authors_subfields <-
   file_authors_subfields %>% 
   read_rds() %>% 
   left_join(subfields, by = c("subfield" = "code")) %>% 
-  filter(date < MAX_DATE) %>% 
+  filter(date <= MAX_DATE) %>% 
   relocate(field, name, subfield, .after = date) %>% 
   rename(subfield_name = name, subfield_code = subfield)
 
 authors_citations <-
   file_authors_citations %>% 
   read_rds() %>% 
-  filter(date < MAX_DATE)
+  filter(date <= MAX_DATE)
 ```
 
 ## New researchers
