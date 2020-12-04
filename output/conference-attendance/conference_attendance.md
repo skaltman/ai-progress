@@ -1,6 +1,6 @@
 Conference attendees
 ================
-2020-05-31
+2020-12-04
 
   - [Attendance at large conferences](#attendance-at-large-conferences)
       - [Attendace at small
@@ -10,7 +10,14 @@ Conference attendees
 ``` r
 # Libraries
 library(tidyverse)
-library(aiprogress)
+
+file_conference_attendance <- 
+  here::here("data/conference-attendance/conference_attendance.rds")
+
+#===============================================================================
+conference_attendance <-
+  file_conference_attendance %>% 
+  read_rds()
 ```
 
 ## Attendance at large conferences

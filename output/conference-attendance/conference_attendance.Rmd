@@ -14,7 +14,14 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r message=FALSE, warning=FALSE}
 # Libraries
 library(tidyverse)
-library(aiprogress)
+
+file_conference_attendance <- 
+  here::here("data/conference-attendance/conference_attendance.rds")
+
+#===============================================================================
+conference_attendance <-
+  file_conference_attendance %>% 
+  read_rds()
 ```
 
 ## Attendance at large conferences
