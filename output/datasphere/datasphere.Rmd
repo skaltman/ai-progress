@@ -14,7 +14,18 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r message=FALSE, warning=FALSE}
 # Libraries
 library(tidyverse)
-library(aiprogress)
+
+file_datasphere <- here::here("data/datasphere/datasphere.csv")
+file_data_created <- here::here("data/datasphere/data_created.csv")
+
+#===============================================================================
+datasphere <- 
+  file_datasphere %>% 
+  read_rds()
+ 
+data_created <-
+  file_data_created %>% 
+  read_rds()
 ```
 
 ## Global datasphere

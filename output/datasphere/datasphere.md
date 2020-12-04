@@ -1,6 +1,6 @@
 Datasphere
 ================
-2020-06-04
+2020-12-04
 
   - [Global datasphere](#global-datasphere)
       - [Volume of data created
@@ -9,7 +9,18 @@ Datasphere
 ``` r
 # Libraries
 library(tidyverse)
-library(aiprogress)
+
+file_datasphere <- here::here("data/datasphere/datasphere.csv")
+file_data_created <- here::here("data/datasphere/data_created.csv")
+
+#===============================================================================
+datasphere <- 
+  file_datasphere %>% 
+  read_rds()
+ 
+data_created <-
+  file_data_created %>% 
+  read_rds()
 ```
 
 ## Global datasphere
