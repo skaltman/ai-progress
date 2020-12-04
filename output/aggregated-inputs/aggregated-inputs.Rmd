@@ -15,9 +15,19 @@ knitr::opts_chunk$set(echo = TRUE)
 # Libraries
 library(tidyverse)
 library(lubridate)
+library(tidymodels)
 
 # Parameters
+  # Starting date
+MIN_DATE <- "2008-01-01"
+  # Ending date
 MAX_DATE <- "2019-12-31"
+  # Year to standardize values to
+STANDARDIZE_YEAR <- 2012
+  
+vars_compute <- c("imagenet", "penn_treebank", "median_pfd")
+var_output <- "sota_total_pct_change"
+
 file_compute <-  
   here::here("data-raw/compute.csv")
 file_funding <-
@@ -29,30 +39,25 @@ file_penn_treebank <-
   here::here("data-raw/penn_treebank.csv")
 file_authors <-       
   here::here("data/microsoft/ms_authors.rds")
-input_colors <- c("#74a9cf", "#3690c0", "#0570b0", "#045a8d", "#023858")
-output_color <- "#f46d43"
-  # "#b2182b"
-input_labels <-
-  c(
-    "funding" = "AI startup funding",
-    "total_authors" = "Total AI researchers",
-    "imagenet" = "Compute - ImageNet",
-    "median_pfd" = "Compute for most compute-intensive models",
-    "penn_treebank" = "Compute - Penn Treebank"
-  )
-output_label <- 
-  c("output_percent_change" = "Output (total percent change per year)")
 #===============================================================================
 
+# Geometric mean function
+gm_mean = function(x, na.rm = TRUE){
+  exp(sum(log(x[x > 0]), na.rm = na.rm) / length(x))
+}
+
+# Read in individual data sets
 imagenet <- 
   read_csv(file_imagenet) %>% 
-  transmute(year = as.integer(year), compute)
+  transmute(year = as.integer(year), compute) %>% 
+  rename(imagenet = compute)
 
 penn_treebank <-
   read_csv(file_penn_treebank) %>% 
   select(year, compute = `compute (pfs)`) %>% 
   drop_na(compute) %>% 
-  mutate(year = floor(year))
+  mutate(year = floor(year)) %>% 
+  rename(penn_treebank = compute)
 
 funding <- 
   read_csv(file_funding) %>% 
@@ -67,62 +72,21 @@ compute <-
 sota <- 
   read_rds(file_sota) %>% 
   mutate(year = year(paper_date)) %>% 
-  # filter(year < 2020) %>% 
+  filter(year <= year(MAX_DATE)) %>% 
   group_by(year) %>% 
-  summarize(total_percent_change = sum(percent_change)) 
+  summarize(sota_total_pct_change = sum(percent_change) * 100) 
 
 researchers <-
   file_authors %>% 
   read_rds() %>% 
-  filter(date < MAX_DATE) %>% 
+  filter(date <= MAX_DATE) %>% 
   group_by(year = year(date)) %>% 
   summarize(total_authors = max(total_authors))
 
-labels <-
-  tribble(
-    ~variable, ~label, ~color,
-    "funding", "AI startup funding", "#F8766D",
-    "total_authors", "Total AI researchers", "#A3A500",
-    "imagenet", "Compute - ImageNet", "#00BF7D",
-    "median_pfd", "Compute for most compute-intensive models", "#00B0F6",
-    "penn_treebank", "Compute - Penn Treebank", "#E76BF3",
-    "output_percent_change", "Output (total percent change per year)", "black"
-  )
-
-labels_ <-
-  enframe(input_labels) %>% 
-  mutate(color = input_colors) %>% 
-  bind_rows(enframe(output_label) %>% mutate(color = output_color)) %>% 
-  rename(variable = name, label = value)
-```
-
-## Aggregated inputs vs. outputs
-
-```{r}
 all <-
-  researchers %>% 
-  full_join(funding, by = "year") %>% 
-  full_join(compute, by = "year") %>% 
-  full_join(sota, by = "year") %>% 
-  full_join(imagenet %>% rename(imagenet = compute), by = "year") %>% 
-  full_join(
-    penn_treebank %>% rename(penn_treebank = compute), 
-    by = "year"
-  )
-```
-
-
-### Option 1
-
-```{r}
-v %>% 
-  filter(variable == "output_percent_change")
-```
-
-
-```{r}
-v <-
- all %>% 
+  list(researchers, funding, sota, compute, imagenet, penn_treebank) %>% 
+  reduce(full_join, by = "year") %>% 
+  filter(year >= year(MIN_DATE)) %>% 
   pivot_longer(
     cols = -year, 
     names_to = "variable", 
@@ -130,11 +94,154 @@ v <-
     values_drop_na = TRUE
   ) %>% 
   group_by(variable) %>% 
-  mutate(value = value / first(value, order_by = year)) %>% 
+  mutate(
+    year = year - 1,
+    value = value / first(value, order_by = year)
+  ) %>% 
   ungroup() %>% 
-  filter(year >= 2010) %>% 
-  drop_na(value) %>% 
-  left_join(labels, by = "variable") 
+  drop_na(value)
+
+avg_compute <-
+  all %>% 
+  filter(variable %in% vars_compute) %>% 
+  group_by(year, variable = "avg_compute") %>%
+  summarize(value = gm_mean(value)) %>% 
+  ungroup() %>% 
+  mutate(value = value / value[year == 2012])
+
+avg_input <-
+  all %>% 
+  filter(variable != var_output) %>% 
+  group_by(year, variable = "avg_input") %>% 
+  summarize(value = gm_mean(value)) %>% 
+  ungroup() %>% 
+  mutate(value = value / value[year == 2012])
+
+df <-
+  all %>% 
+  filter(!variable %in% vars_compute) %>% 
+  group_by(variable) %>% 
+  mutate(value = value / value[year == 2012]) %>% 
+  ungroup()
+```
+
+## Models
+
+```{r}
+# Output data
+outputs <-
+  df %>% 
+  filter(variable == "sota_total_pct_change") 
+
+# Input data
+inputs <-
+  avg_input %>% 
+  mutate(log_value = log10(value))
+
+# Model spec
+lm_spec <-
+  linear_reg() %>% 
+  set_engine(engine = "lm")
+
+output_fit <- 
+  lm_spec %>% 
+  fit(formula = value ~ year, data = outputs)
+
+input_fit <- 
+  lm_spec %>% 
+  fit(
+    formula = log_value ~ year, 
+    data = inputs 
+  )
+
+inputs %>% 
+  ggplot(aes(year, log_value)) +
+  geom_point() +
+  scale_y_log10()
+```
+
+
+```{r message=FALSE}
+labels <-
+  c(
+    # "avg_compute" = "Average compute",  
+    # "funding" = "Funding",  
+    # "total_authors" = "Total authors",
+    "avg_input" = "Average input",
+    "sota_total_pct_change" = "Output:\nSum of SOTA\npercent change"
+  )
+
+v <-
+  outputs %>% 
+  bind_rows(avg_input)
+
+model_preds <-
+  tibble(
+    variable = "sota_total_pct_change",
+    year = seq(min(outputs$year), max(outputs$year), by = 0.25)
+  ) %>% 
+  modelr::add_predictions(output_fit$fit) %>% 
+  bind_rows(
+    tibble(
+      variable = "avg_input",
+      year = seq(min(avg_input$year), max(avg_input$year), by = 0.25)
+    ) %>% 
+      modelr::add_predictions(input_fit$fit) %>% 
+      mutate(pred = 10 ^ pred)
+  )
+
+df %>% 
+  filter(variable != "sota_total_pct_change") %>% 
+  bind_rows(avg_compute) %>% 
+  ggplot(aes(year, value)) +
+  geom_hline(yintercept = 1, color = "white", size = 1) +
+  geom_point(aes(shape = variable), color = "#92c5de") +
+  geom_point(aes(color = variable), data = v) +
+  geom_smooth(aes(color = variable)) +
+  # geom_line(aes(y = pred, color = variable), data = model_preds) +
+  scale_x_continuous(breaks = scales::breaks_width(1)) +
+  scale_y_log10(breaks = scales::breaks_log(7)) +
+  scale_color_manual(values = c("#0571b0", "#ca0020"),labels = labels) +
+  scale_shape_discrete(labels = labels) +
+  guides(color = guide_legend(order = 1)) +
+  labs(
+    x = "Year",
+    y = "Factor increase from first data point (log scale)",
+    color = NULL,
+    shape = "Inputs",
+    title = "Inputs to and outputs from AI research over time",
+    subtitle = 
+      "Inputs (blue) have risen exponentially while outputs (red) have only increased linearly"
+  )
+
+outputs %>% 
+  bind_rows(inputs) %>% 
+  ggplot(aes(year, value, color = variable)) +
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  scale_x_continuous(breaks = scales::breaks_width(2)) +
+  scale_y_log10() +
+  scale_color_discrete(labels = labels) +
+  labs(
+    x = "Year",
+    y = "Factor increase from first data point\n(log scale)",
+    color = NULL,
+    title = "Inputs to and outputs from AI research over time",
+    subtitle = "Inputs increasing more quickly than outputs"
+  )
+```
+
+## Model stats
+
+```{r}
+summary(input_fit$fit)
+summary(output_fit$fit)
+```
+
+
+
+```{r}
+
 
 output <- 
   v %>% 
